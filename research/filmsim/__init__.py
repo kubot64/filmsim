@@ -1,7 +1,7 @@
 """filmsim research package.
 
 Pipeline: linear scene-referred RGB -> WB shift -> exposure anchor -> F-Gamut
--> F-Log2 -> official Fujifilm LUT -> tone -> grain -> display sRGB.
+-> F-Log2 -> official Fujifilm LUT -> tone -> grain -> BT.709 code values.
 """
 
 from .flog2 import FLOG, FLOG2, LogCurve

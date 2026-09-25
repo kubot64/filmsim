@@ -13,7 +13,10 @@ def srgb_to_lab(img: np.ndarray) -> np.ndarray:
 
 
 def delta_e_stats(a: np.ndarray, b: np.ndarray) -> dict[str, float]:
-    """Both inputs: sRGB-encoded floats of identical shape."""
+    """Both inputs are decoded with the sRGB EOTF.
+
+    LUT output is BT.709 gamma, so this is not the same curve as the HEIC tag.
+    """
     de = colour.delta_E(srgb_to_lab(a), srgb_to_lab(b), method="CIE 2000")
     return {
         "mean": float(de.mean()),

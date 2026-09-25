@@ -51,14 +51,14 @@ final class Developer {
         }
     }
 
-    /// The develop screen passes its recipe. The camera uses the default, so the two screens do not share one.
+    /// Both screens pass the stored last-used recipe (`Recipe.storageKey`, #8).
     func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe) async -> CGImage? {
         guard let pipeline else { return nil }
         let box = RenderBox(pipeline: pipeline, context: context, recipe: recipe, rawData: rawData, scaleFactor: scaleFactor)
         return await Task.detached(priority: .userInitiated) { box.cgImage() }.value
     }
 
-    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe = Recipe()) async -> DevelopSaveResult {
+    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe) async -> DevelopSaveResult {
         guard await authorizeAdd() else { return .permissionDenied }
         let heic: Data?
         if let pipeline {

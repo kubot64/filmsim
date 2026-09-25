@@ -7,11 +7,17 @@ struct DevelopView: View {
     @State private var picked: PhotosPickerItem?
     @State private var rawData: Data?
     @State private var preview: UIImage?
-    @State private var recipe = Recipe()
+    /// Shared with the camera screen, which develops new shots with it (#8).
+    @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
     @State private var message: String?
     /// One preview develop runs at a time. A newer recipe only replaces the single waiting request.
     @State private var renderGeneration = 0
     @State private var renderTask: Task<Void, Never>?
+
+    private var recipe: Recipe { Recipe.decoded(from: storedRecipe) }
+    private var recipeBinding: Binding<Recipe> {
+        Binding(get: { recipe }, set: { storedRecipe = $0.encoded })
+    }
 
     var body: some View {
         NavigationStack {
@@ -25,18 +31,18 @@ struct DevelopView: View {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
                 }
                 Form {
-                    Picker("Film simulation", selection: $recipe.filmSimulation) {
+                    Picker("Film simulation", selection: recipeBinding.filmSimulation) {
                         ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
                     }
-                    slider("Exposure", value: $recipe.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
-                    slider("WB R", value: $recipe.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
-                    slider("WB B", value: $recipe.wbShiftB, range: -9...9, step: 1, format: "%+.0f")
-                    slider("Highlight", value: $recipe.highlight, range: -2...4, step: 1, format: "%+.0f")
-                    slider("Shadow", value: $recipe.shadow, range: -2...4, step: 1, format: "%+.0f")
-                    Picker("Grain", selection: $recipe.grainStrength) {
+                    slider("Exposure", value: recipeBinding.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
+                    slider("WB R", value: recipeBinding.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
+                    slider("WB B", value: recipeBinding.wbShiftB, range: -9...9, step: 1, format: "%+.0f")
+                    slider("Highlight", value: recipeBinding.highlight, range: -2...4, step: 1, format: "%+.0f")
+                    slider("Shadow", value: recipeBinding.shadow, range: -2...4, step: 1, format: "%+.0f")
+                    Picker("Grain", selection: recipeBinding.grainStrength) {
                         ForEach(GrainStrength.allCases, id: \.self) { Text($0.rawValue) }
                     }
-                    Picker("Grain size", selection: $recipe.grainSize) {
+                    Picker("Grain size", selection: recipeBinding.grainSize) {
                         ForEach(GrainSize.allCases, id: \.self) { Text($0.rawValue) }
                     }
                 }
@@ -56,7 +62,7 @@ struct DevelopView: View {
                 }
             }
             .onChange(of: picked) { _, item in Task { await load(item) } }
-            .onChange(of: recipe) { _, _ in scheduleRender() }
+            .onChange(of: storedRecipe) { _, _ in scheduleRender() }
         }
     }
 

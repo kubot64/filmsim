@@ -3,7 +3,7 @@ import Foundation
 import ImageIO
 
 /// Wraps CIRAWFilter so that it hands back near scene-linear data:
-/// no boost, no local tone mapping, Apple's demosaic / noise reduction / lens correction kept.
+/// no boost, no local tone mapping, values above 1.0 kept, Apple's demosaic / noise reduction / lens correction kept.
 public enum RawDeveloper {
     public struct Options: Sendable {
         public var luminanceNoiseReduction: Float = 0.3   // Apple default is stronger than Fujifilm; tune (OPEN_QUESTIONS)
@@ -32,7 +32,9 @@ public enum RawDeveloper {
         filter.colorNoiseReductionAmount = options.colorNoiseReduction
         filter.sharpnessAmount = options.sharpness
         filter.scaleFactor = options.scaleFactor
-        filter.extendedDynamicRangeAmount = 0
+        // Keep values above 1.0. With 0 the filter clips at 1.0 and throws away up to ~1.3 stops of
+        // real red/blue data around lights, which then render as flat light grey (#24).
+        filter.extendedDynamicRangeAmount = 1
         guard let sensor = filter.outputImage else { return nil }
         return sensor.cropped35mmThreeByTwo(shot: shot)
     }

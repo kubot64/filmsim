@@ -1,3 +1,5 @@
+import CoreImage
+import ImageIO
 import XCTest
 @testable import FilmSimCore
 
@@ -21,5 +23,15 @@ final class SensorCropTests: XCTestCase {
         XCTAssertEqual(r.height, CGFloat(400), accuracy: 1e-6)
         XCTAssertEqual(r.width, CGFloat(600), accuracy: 1e-6)
         XCTAssertEqual(r.midX, extent.midX, accuracy: 1e-6)
+    }
+
+    func testPortraitShotKeeps35mmOnTheSensorLongSide() {
+        let native = CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: 8064, height: 6048))
+        let upright = native.cropped35mmThreeByTwo(shot: .up)
+        let portrait = native.cropped35mmThreeByTwo(shot: .right)
+        XCTAssertEqual(upright.extent.width / 8064, CGFloat(24.0 / 35.0), accuracy: 0.001)
+        XCTAssertGreaterThan(upright.extent.width, upright.extent.height)
+        XCTAssertEqual(portrait.extent.width, upright.extent.height, accuracy: 0.5)
+        XCTAssertEqual(portrait.extent.height, upright.extent.width, accuracy: 0.5)
     }
 }

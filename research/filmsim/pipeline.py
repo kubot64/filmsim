@@ -42,10 +42,10 @@ def render(
     input_space: RGBSpace = F_GAMUT,
     seed: int = 0,
 ) -> np.ndarray:
-    """Render a scene-linear (H, W, 3) image to display-referred sRGB-encoded floats.
+    """Render a scene-linear (H, W, 3) image to display-referred code values.
 
-    The official LUTs take F-Log2 / F-Gamut in and produce BT.709-gamma out, so the
-    output is treated as encoded BT.709 (visually equivalent to sRGB here).
+    The official LUTs take F-Log2 / F-Gamut in and produce BT.709-gamma out.
+    `metrics.delta_e_stats` still decodes those codes with the sRGB EOTF.
     """
     x = np.asarray(linear, dtype=np.float64)
     x = x * wb_shift_gains(*recipe.wb_shift)

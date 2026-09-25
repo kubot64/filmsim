@@ -9,7 +9,7 @@
    - 露出アンカーとハイライトの扱いを決める。ΔE の目標は中央値 3 以下
 3. **Classic Chrome で同じ検証**、その後 グレイン / H/S トーン / WB シフト を追加
 4. **Swift に移植**
-   - 色行列、F-Log2、トーン、グレインの式は Python と一致済み。残るのは公式 LUT を通した中間画像の期待値
+   - 色行列、F-Log2、トーン、グレインの CPU 上の式は Python と一致済み。Metal の `toneCurve` と `grainApply` は同じ式だが、GPU が描いた画像との比較はまだない。残るのは公式 LUT を通した中間画像の期待値
    - CIRAWFilter → 線形 → Metal の F-Log2 カーネル → CIColorCube（色変換なしでログコードを引く）
 5. **カメラと保存**
    - RAW 撮影 → 現像 → HEIC + DNG を写真ライブラリへ

@@ -43,7 +43,6 @@ enum LibraryRaw {
     }
 
     private static func isRaw(_ resource: PHAssetResource) -> Bool {
-        if resource.type == .alternatePhoto { return true }
         guard let type = UTType(resource.uniformTypeIdentifier) else { return false }
         return type.conforms(to: .rawImage)
     }

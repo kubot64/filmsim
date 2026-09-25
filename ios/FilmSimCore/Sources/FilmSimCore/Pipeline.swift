@@ -12,7 +12,7 @@ public struct Pipeline {
     public struct Kernels {
         public let flog2: CIColorKernel
         public let tone: CIColorKernel
-        public let grain: CIKernel
+        public let grain: CIColorKernel
 
         /// Loads kernels from the app's default.metallib. The .metal file lives in the app
         /// target because CI kernels need `-fcikernel`.
@@ -24,7 +24,7 @@ public struct Pipeline {
             return Kernels(
                 flog2: try CIColorKernel(functionName: "flog2Encode", fromMetalLibraryData: data),
                 tone: try CIColorKernel(functionName: "toneCurve", fromMetalLibraryData: data),
-                grain: try CIKernel(functionName: "grainApply", fromMetalLibraryData: data)
+                grain: try CIColorKernel(functionName: "grainApply", fromMetalLibraryData: data)
             )
         }
     }

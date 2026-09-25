@@ -12,7 +12,7 @@ final class CameraController: NSObject, ObservableObject {
 
     @Published var isReady = false
     @Published var status = "起動中…"
-    /// Aspect-fill zoom so the 3:2 preview matches the 35mm crop. 4:3 until the format is known.
+    /// Aspect-fill zoom so the portrait 2:3 preview matches the 35mm crop. 4:3 until the format is known.
     @Published var previewZoom: CGFloat = PreviewFraming.defaultZoom
 
     struct PendingCapture {
@@ -52,7 +52,7 @@ final class CameraController: NSObject, ObservableObject {
             let video = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
             if video.height > 0 {
                 previewZoom = CGFloat(PreviewFraming.zoom(
-                    videoAspectWidthOverHeight: Double(video.width) / Double(video.height)
+                    sensorAspectWidthOverHeight: Double(video.width) / Double(video.height)
                 ))
             }
             photoDims = dims
@@ -114,22 +114,25 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
     }
 }
 
-/// Extra zoom on a 3:2 aspect-fill preview so the visible region matches `SensorCrop`.
+/// Extra zoom so a portrait 2:3 preview matches the 35mm crop after a 90° rotation.
 enum PreviewFraming {
     /// 4:3 sensor, used until the active format's aspect is known.
     static var defaultZoom: CGFloat {
         CGFloat(SensorCrop.targetEquivalentMM / SensorCrop.wideEquivalentMM)
     }
 
-    /// `videoAspect` is width/height of the preview stream, assumed to cover the full sensor.
-    static func zoom(videoAspectWidthOverHeight videoAspect: Double) -> Double {
-        let viewAspect = 3.0 / 2.0
-        let filledWidthFraction = videoAspect <= viewAspect ? 1.0 : viewAspect / videoAspect
-        let sensor = CGRect(x: 0, y: 0, width: CGFloat(videoAspect), height: 1)
+    /// `sensorAspect` is the unrotated format width/height. The preview layer shows that
+    /// frame rotated 90° into a 2:3 view, which is the saved 3:2 crop turned upright.
+    static func zoom(sensorAspectWidthOverHeight sensorAspect: Double) -> Double {
+        guard sensorAspect > 0 else { return Double(defaultZoom) }
+        let displayedAspect = 1 / sensorAspect
+        let viewAspect = 2.0 / 3.0
+        let filledWidthFraction = displayedAspect <= viewAspect ? 1.0 : viewAspect / displayedAspect
+        let sensor = CGRect(x: 0, y: 0, width: CGFloat(sensorAspect), height: 1)
         let crop = SensorCrop.rect35mmThreeByTwo(in: sensor)
-        let fraction = Double(crop.width / max(sensor.width, 1))
-        guard fraction > 0 else { return Double(defaultZoom) }
-        return filledWidthFraction / fraction
+        let visibleWidthFraction = Double(crop.height / max(sensor.height, 1))
+        guard visibleWidthFraction > 0 else { return Double(defaultZoom) }
+        return filledWidthFraction / visibleWidthFraction
     }
 }
 
@@ -150,8 +153,8 @@ struct CameraPreview: UIViewRepresentable {
         uiView.setNeedsLayout()
     }
 
-    /// The preview layer is a sublayer, larger than the view by `zoom`, so a 3:2 clip
-    /// shows the same center crop `SensorCrop` applies to the saved image.
+    /// The preview layer is a sublayer, larger than the view by `zoom`, so a 2:3 clip
+    /// shows the same center crop `SensorCrop` applies before the shot is turned upright.
     final class PreviewView: UIView {
         let videoPreviewLayer = AVCaptureVideoPreviewLayer()
         var zoom: CGFloat = PreviewFraming.defaultZoom
@@ -175,6 +178,10 @@ struct CameraPreview: UIViewRepresentable {
                 width: b.width * z,
                 height: b.height * z
             )
+            // The interface is portrait-locked. Keep the sensor image upright in that frame.
+            if let connection = videoPreviewLayer.connection, connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90
+            }
         }
     }
 }

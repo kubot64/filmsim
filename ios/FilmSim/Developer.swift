@@ -2,16 +2,12 @@ import CoreImage
 import FilmSimCore
 import ImageIO
 import Photos
-import UIKit
 import UniformTypeIdentifiers
 
 /// Runs the FilmSimCore pipeline on a DNG and writes HEIC (+ optional DNG) to the photo library.
 @MainActor
 final class Developer {
     static let shared = Developer()
-
-    private static let linearP3 = CGColorSpace(name: CGColorSpace.linearDisplayP3)!
-    private static let bt709 = CGColorSpace(name: CGColorSpace.itur_709)!
 
     /// Working space matches the linear P3 the matrix expects. Output pixels are retagged
     /// as BT.709 without a second conversion — the LUT already emitted 709-gamma code values.
@@ -22,7 +18,6 @@ final class Developer {
     private(set) var pipeline: Pipeline?
     /// Set when kernels or LUT files are missing. Rendering a loaded simulation still works.
     private(set) var setupError: String?
-    var recipe = Recipe()
 
     private init() {
         do {
@@ -45,26 +40,22 @@ final class Developer {
         }
     }
 
-    func render(rawData: Data, scaleFactor: Float = 1) -> CIImage? {
+    /// The develop screen passes its recipe. The camera uses the default, so the two screens do not share one.
+    func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe) async -> CGImage? {
         guard let pipeline else { return nil }
-        var options = RawDeveloper.Options()
-        options.scaleFactor = scaleFactor
-        guard let linear = RawDeveloper.developLinear(rawData: rawData, options: options) else { return nil }
-        return pipeline.render(
-            linear.cropped35mmThreeByTwo(),
-            recipe: recipe,
-            grainPixelScale: Double(scaleFactor)
-        )
+        let box = RenderBox(pipeline: pipeline, context: context, recipe: recipe, rawData: rawData, scaleFactor: scaleFactor)
+        return await Task.detached(priority: .userInitiated) { box.cgImage() }.value
     }
 
-    func uiImage(from image: CIImage) -> UIImage? {
-        guard let cg = displayCGImage(from: image) else { return nil }
-        return UIImage(cgImage: cg)
-    }
-
-    func developAndSave(rawData: Data, saveDNG: Bool) async -> String {
+    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe = Recipe()) async -> String {
         guard await authorizeAdd() else { return "写真ライブラリへのアクセスが拒否されました" }
-        let heic = render(rawData: rawData).flatMap { heicData(from: $0) }
+        let heic: Data?
+        if let pipeline {
+            let box = RenderBox(pipeline: pipeline, context: context, recipe: recipe, rawData: rawData, scaleFactor: 1)
+            heic = await Task.detached(priority: .userInitiated) { box.heic() }.value
+        } else {
+            heic = nil
+        }
         if heic == nil && !saveDNG {
             return setupError ?? "現像に失敗しました"
         }
@@ -91,17 +82,32 @@ final class Developer {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         return status == .authorized || status == .limited
     }
+}
 
-    private func displayCGImage(from image: CIImage) -> CGImage? {
-        let rect = image.extent.integral
-        guard rect.width > 1, rect.height > 1,
-              let rendered = context.createCGImage(image, from: rect, format: .RGBA8, colorSpace: Self.linearP3),
-              let tagged = Self.retag(rendered, as: Self.bt709) else { return nil }
-        return tagged
+/// CIContext is safe to render from a background queue. The box keeps that work off the main actor
+/// so a slider change can cancel the published result before the next frame is shown.
+private final class RenderBox: @unchecked Sendable {
+    let pipeline: Pipeline
+    let context: CIContext
+    let recipe: Recipe
+    let rawData: Data
+    let scaleFactor: Float
+
+    init(pipeline: Pipeline, context: CIContext, recipe: Recipe, rawData: Data, scaleFactor: Float) {
+        self.pipeline = pipeline
+        self.context = context
+        self.recipe = recipe
+        self.rawData = rawData
+        self.scaleFactor = scaleFactor
     }
 
-    private func heicData(from image: CIImage) -> Data? {
-        guard let cg = displayCGImage(from: image) else { return nil }
+    func cgImage() -> CGImage? {
+        guard let image = rendered() else { return nil }
+        return Self.displayCGImage(image, context: context)
+    }
+
+    func heic() -> Data? {
+        guard let cg = cgImage() else { return nil }
         let data = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(data as CFMutableData, UTType.heic.identifier as CFString, 1, nil) else {
             return nil
@@ -112,9 +118,27 @@ final class Developer {
         return data as Data
     }
 
-    /// Replace the color space tag without touching pixels.
+    private func rendered() -> CIImage? {
+        var options = RawDeveloper.Options()
+        options.scaleFactor = scaleFactor
+        guard let linear = RawDeveloper.developLinear(rawData: rawData, options: options) else { return nil }
+        return pipeline.render(linear, recipe: recipe, grainPixelScale: Double(scaleFactor))
+    }
+
+    private static let linearP3 = CGColorSpace(name: CGColorSpace.linearDisplayP3)!
+    private static let bt709 = CGColorSpace(name: CGColorSpace.itur_709)!
+
+    private static func displayCGImage(_ image: CIImage, context: CIContext) -> CGImage? {
+        let rect = image.extent.integral
+        guard rect.width > 1, rect.height > 1,
+              let rendered = context.createCGImage(image, from: rect, format: .RGBA8, colorSpace: linearP3),
+              let tagged = retag(rendered, as: bt709) else { return nil }
+        return tagged
+    }
+
+    /// Replace the color space tag. The new image keeps the same data provider, so the pixels are not copied.
     private static func retag(_ image: CGImage, as colorSpace: CGColorSpace) -> CGImage? {
-        guard let data = image.dataProvider?.data, let provider = CGDataProvider(data: data) else { return nil }
+        guard let provider = image.dataProvider else { return nil }
         let info = CGBitmapInfo(rawValue: image.bitmapInfo.rawValue | image.alphaInfo.rawValue)
         return CGImage(
             width: image.width,

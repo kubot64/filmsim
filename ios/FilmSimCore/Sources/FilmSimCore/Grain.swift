@@ -1,4 +1,5 @@
 import CoreImage
+import CoreImage.CIFilterBuiltins
 import Foundation
 
 /// Film grain: luminance-weighted monochrome noise, matching research/filmsim/grain.py.
@@ -58,7 +59,7 @@ public enum Grain {
         strength: GrainStrength,
         size: GrainSize,
         pixelScale: Double = 1,
-        kernel: CIKernel
+        kernel: CIColorKernel
     ) -> CIImage {
         let amp = amplitude(strength)
         if amp == 0 { return image }
@@ -80,7 +81,6 @@ public enum Grain {
             .cropped(to: image.extent)
         return kernel.apply(
             extent: image.extent,
-            roiCallback: { _, rect in rect },
             arguments: [image, noise, NSNumber(value: Float(amp))]
         ) ?? image
     }

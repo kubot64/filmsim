@@ -42,7 +42,12 @@ struct DevelopView: View {
             .navigationTitle("Develop")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    PhotosPicker("Open", selection: $picked, matching: .images)
+                    PhotosPicker(
+                        "Open",
+                        selection: $picked,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    )
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") { Task { await save() } }.disabled(rawData == nil)
@@ -86,22 +91,19 @@ struct DevelopView: View {
     private func rerender() async {
         guard let rawData else { return }
         let current = recipe
-        Developer.shared.recipe = current
-        guard let out = Developer.shared.render(rawData: rawData, scaleFactor: 0.25),
-              let image = Developer.shared.uiImage(from: out) else {
-            guard !Task.isCancelled else { return }
+        guard let cg = await Developer.shared.displayCGImage(rawData: rawData, scaleFactor: 0.25, recipe: current) else {
+            guard !Task.isCancelled, recipe == current else { return }
             preview = nil
             message = Developer.shared.setupError ?? "RAW として現像できません"
             return
         }
-        guard !Task.isCancelled, self.recipe == current else { return }
-        preview = image
+        guard !Task.isCancelled, recipe == current else { return }
+        preview = UIImage(cgImage: cg)
         message = nil
     }
 
     private func save() async {
         guard let rawData else { return }
-        Developer.shared.recipe = recipe
-        message = await Developer.shared.developAndSave(rawData: rawData, saveDNG: false)
+        message = await Developer.shared.developAndSave(rawData: rawData, saveDNG: false, recipe: recipe)
     }
 }

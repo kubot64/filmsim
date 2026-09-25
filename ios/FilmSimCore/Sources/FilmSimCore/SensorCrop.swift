@@ -1,5 +1,6 @@
 import CoreGraphics
 import CoreImage
+import ImageIO
 
 /// 24mm main-camera frame cropped to a 35mm-equivalent 3:2.
 public enum SensorCrop {
@@ -27,9 +28,16 @@ public enum SensorCrop {
 
 public extension CIImage {
     /// Same framing as `SensorCrop.rect35mmThreeByTwo`, snapped to whole pixels.
+    /// `self` must be the sensor-native buffer (wide side along x). A portrait
+    /// buffer would apply 24/35 to the short side and land near 47mm instead of 35mm.
     func cropped35mmThreeByTwo() -> CIImage {
         let pixels = SensorCrop.rect35mmThreeByTwo(in: extent).integral.intersection(extent)
         guard pixels.width >= 2, pixels.height >= 2 else { return self }
         return cropped(to: pixels)
+    }
+
+    /// Crop in sensor orientation, then apply the shot orientation.
+    func cropped35mmThreeByTwo(shot orientation: CGImagePropertyOrientation) -> CIImage {
+        cropped35mmThreeByTwo().oriented(orientation)
     }
 }

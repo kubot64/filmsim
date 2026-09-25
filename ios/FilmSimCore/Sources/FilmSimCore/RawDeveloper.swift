@@ -1,5 +1,6 @@
 import CoreImage
 import Foundation
+import ImageIO
 
 /// Wraps CIRAWFilter so that it hands back near scene-linear data:
 /// no boost, no local tone mapping, Apple's demosaic / noise reduction / lens correction kept.
@@ -14,8 +15,14 @@ public enum RawDeveloper {
     }
 
     /// Returns a linear CIImage in the filter's working space (Display P3 linear on iOS).
+    ///
+    /// The 35mm crop runs on the sensor-native buffer. `CIRAWFilter` otherwise
+    /// applies the shot orientation first, and a portrait frame would crop the
+    /// short side (about 47mm instead of 35mm).
     public static func developLinear(rawData: Data, options: Options = Options()) -> CIImage? {
         guard let filter = CIRAWFilter(imageData: rawData, identifierHint: nil) else { return nil }
+        let shot = filter.orientation
+        filter.orientation = .up
         filter.boostAmount = 0
         filter.boostShadowAmount = 0
         filter.localToneMapAmount = 0
@@ -26,6 +33,7 @@ public enum RawDeveloper {
         filter.sharpnessAmount = options.sharpness
         filter.scaleFactor = options.scaleFactor
         filter.extendedDynamicRangeAmount = 0
-        return filter.outputImage
+        guard let sensor = filter.outputImage else { return nil }
+        return sensor.cropped35mmThreeByTwo(shot: shot)
     }
 }

@@ -1,0 +1,17 @@
+name: Fetch official LUTs
+description: Restore the Fujifilm LUTs from cache or download them with scripts/fetch_luts.sh
+runs:
+  using: composite
+  steps:
+    - name: Restore LUT cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          research/luts/official/*.cube
+          ios/FilmSim/LUTs/*.cube
+        # the script pins the zip's SHA-256, so its hash changes exactly when the LUTs do
+        key: luts-${{ hashFiles('scripts/fetch_luts.sh') }}
+    - name: Download LUTs
+      shell: bash
+      run: bash scripts/fetch_luts.sh

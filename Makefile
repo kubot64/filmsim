@@ -12,3 +12,12 @@ test-swift:
 
 xcode:
 	cd ios && xcodegen generate
+
+.PHONY: ci luts
+luts:
+	bash scripts/fetch_luts.sh
+
+ci: luts
+	cd research && uv sync --locked && uv run pytest -q -rs
+	cd ios/FilmSimCore && swift test
+	cd ios && xcodegen generate && xcodebuild -project FilmSim.xcodeproj -scheme FilmSim -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build -quiet

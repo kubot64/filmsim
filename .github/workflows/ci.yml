@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/fetch-luts
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: research/uv.lock
+      - name: Install
+        working-directory: research
+        run: uv sync --locked
+      - name: Test
+        working-directory: research
+        run: uv run pytest -q -rs
+
+  swift-package:
+    name: swift-package
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: swift --version && xcodebuild -version
+      - name: Test
+        working-directory: ios/FilmSimCore
+        run: swift test
+
+  ios-app:
+    name: ios-app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/fetch-luts
+      - name: Install tools
+        run: brew install xcodegen xcbeautify
+      - name: Generate project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build (simulator, unsigned)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project FilmSim.xcodeproj \
+            -scheme FilmSim \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify --renderer github-actions
+      - name: Check LUTs are bundled
+        run: |
+          app=$(find ~/Library/Developer/Xcode/DerivedData -type d -name 'FilmSim.app' -path '*iphonesimulator*' | head -n1)
+          test -n "$app" && ls "$app"/*.cube

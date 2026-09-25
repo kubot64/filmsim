@@ -21,6 +21,19 @@ cd ios/FilmSimCore && DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer s
 cd ios && xcodegen generate && open FilmSim.xcodeproj
 ```
 
+## CI
+
+GitHub Actions（`.github/workflows/ci.yml`）で push と PR ごとに 3 ジョブが走る。
+
+| ジョブ | ランナー | 内容 |
+|---|---|---|
+| python | ubuntu | `uv sync --locked` と pytest（公式 LUT のサニティテスト含む） |
+| swift-package | macos-15 | `ios/FilmSimCore` の `swift test` |
+| ios-app | macos-15 | XcodeGen で生成してシミュレータ向けに署名なしビルド、.cube がバンドルされることを確認 |
+
+公式 LUT は `scripts/fetch_luts.sh` の SHA-256 をキーにキャッシュされる。Fujifilm が zip を差し替えるとチェックサム不一致で CI が赤になるので、内容を確認してスクリプトの `ZIP_SHA256` を更新する。
+`main` は 3 ジョブが required なブランチ保護付き。ローカルで同じことを回すには `make ci`。
+
 ## 公式 LUT と検証データ
 
 - 公式 LUT は `scripts/fetch_luts.sh` が取得して `research/luts/official/` と `ios/FilmSim/LUTs/` に置く（git 管理外）

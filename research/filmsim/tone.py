@@ -15,6 +15,30 @@ def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
     return t * t * (3 - 2 * t)
 
 
+# Fixed shoulder applied to every LUT output (#16). Fitted on 15 Provia / Classic
+# Chrome pairs from seven bodies; it lifts highlights toward X-series camera JPEGs.
+SHOULDER_KNEE = 0.6
+SHOULDER_GAMMA = 0.5
+_LUMA = np.array([0.2126, 0.7152, 0.0722])
+
+
+def x_series_shoulder(rgb: np.ndarray) -> np.ndarray:
+    """Lift the LUT output's highlights toward X-series camera JPEGs.
+
+    Against camera JPEGs, the official (GFX-built) LUT renders reference L* 80+ darker
+    on every X-series pair tested. Luma above SHOULDER_KNEE is blended toward
+    luma**SHOULDER_GAMMA and RGB is scaled by the luma ratio, so hue and saturation
+    stay put. Below the knee and at 1.0 nothing changes. The one GFX pair got worse,
+    so this is an X-series target, not a property of the LUT. See docs/DESIGN.md.
+    """
+    rgb = np.clip(np.asarray(rgb, dtype=np.float64), 0.0, 1.0)
+    y = rgb @ _LUMA
+    w = _smoothstep(SHOULDER_KNEE, 1.0, y)
+    lifted = y * (1 - w) + np.power(y, SHOULDER_GAMMA) * w
+    ratio = np.divide(lifted, y, out=np.ones_like(y), where=y > 1e-6)
+    return np.clip(rgb * ratio[..., None], 0.0, 1.0)
+
+
 def tone_curve(x: np.ndarray, highlight: float = 0.0, shadow: float = 0.0) -> np.ndarray:
     """Apply highlight/shadow tone to a display-referred image in [0, 1].
 

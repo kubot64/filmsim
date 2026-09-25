@@ -9,6 +9,8 @@ struct DevelopView: View {
     @State private var preview: UIImage?
     @State private var recipe = Recipe()
     @State private var message: String?
+    /// One preview develop runs at a time. A newer recipe only replaces the single waiting request.
+    @State private var renderGeneration = 0
     @State private var renderTask: Task<Void, Never>?
 
     var body: some View {
@@ -75,31 +77,45 @@ struct DevelopView: View {
         do {
             rawData = try await LibraryRaw.load(from: item)
             message = nil
-            await rerender()
+            scheduleRender()
         } catch {
             rawData = nil
             preview = nil
+            renderGeneration += 1
             message = error.localizedDescription
         }
     }
 
+    /// Starts a preview develop, or remembers that the latest recipe still needs one.
+    /// The in-flight develop runs to completion; its image is shown only if no newer request arrived.
     private func scheduleRender() {
-        renderTask?.cancel()
-        renderTask = Task { await rerender() }
+        guard rawData != nil else { return }
+        renderGeneration += 1
+        guard renderTask == nil else { return }
+        renderTask = Task { await drainRenders() }
     }
 
-    private func rerender() async {
-        guard let rawData else { return }
-        let current = recipe
-        guard let cg = await Developer.shared.displayCGImage(rawData: rawData, scaleFactor: 0.25, recipe: current) else {
-            guard !Task.isCancelled, recipe == current else { return }
-            preview = nil
-            message = Developer.shared.setupError ?? "RAW として現像できません"
+    private func drainRenders() async {
+        defer { renderTask = nil }
+        while !Task.isCancelled {
+            guard let rawData else { return }
+            let current = recipe
+            let epoch = renderGeneration
+            let cg = await Developer.shared.displayCGImage(rawData: rawData, scaleFactor: 0.25, recipe: current)
+            if Task.isCancelled { return }
+            if renderGeneration != epoch || recipe != current {
+                guard renderGeneration != epoch, self.rawData != nil else { return }
+                continue
+            }
+            if let cg {
+                preview = UIImage(cgImage: cg)
+                message = nil
+            } else {
+                preview = nil
+                message = Developer.shared.setupError ?? "RAW として現像できません"
+            }
             return
         }
-        guard !Task.isCancelled, recipe == current else { return }
-        preview = UIImage(cgImage: cg)
-        message = nil
     }
 
     private func save() async {

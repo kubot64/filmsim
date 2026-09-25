@@ -2,7 +2,8 @@ import AVFoundation
 import FilmSimCore
 import SwiftUI
 
-/// AVFoundation session configured for Bayer RAW at the sensor's full resolution.
+/// AVFoundation session configured for Bayer RAW. Requests the largest photo size, but 48MP
+/// main cameras return 12MP Bayer RAW (DESIGN.md "入力形式").
 @MainActor
 final class CameraController: NSObject, ObservableObject {
     let session = AVCaptureSession()

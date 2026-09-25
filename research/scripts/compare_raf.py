@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from filmsim import CubeLUT, Recipe, render
-from filmsim.metrics import delta_e_stats
+from filmsim.metrics import delta_e_breakdown, delta_e_stats
 from filmsim.rawio import crop_center, load_raw_linear, load_srgb, resize_linear, resize_to, save_srgb
 
 # Compare at reduced size: ΔE is about colour, not sharpness. The linear image is
@@ -32,6 +32,7 @@ def main() -> None:
     ap.add_argument("--ev", type=float, default=0.0)
     ap.add_argument("--sweep-ev", nargs=3, type=float, metavar=("START", "STOP", "STEP"))
     ap.add_argument("--out", type=Path, help="directory for side-by-side PNGs")
+    ap.add_argument("--breakdown", action="store_true", help="split ΔE at the best EV by lightness and hue")
     args = ap.parse_args()
 
     lut = CubeLUT.load(args.lut)
@@ -57,6 +58,10 @@ def main() -> None:
 
     ev, stats, out_small = best
     print(f"\nbest ev={ev:+.2f} median ΔE={stats['median']:.2f}")
+    if args.breakdown:
+        print("\nband          share  medΔE     ΔL     ΔC      Δh   (ours − camera)")
+        for r in delta_e_breakdown(out_small, ref_small):
+            print(f"{r['band']:12s} {r['share'] * 100:5.1f}%  {r['median']:5.2f}  {r['dL']:+5.2f}  {r['dC']:+5.2f}  {r['dh']:+6.1f}°")
     if args.out:
         args.out.mkdir(parents=True, exist_ok=True)
         save_srgb(args.out / "render.png", out_small)

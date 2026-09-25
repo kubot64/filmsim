@@ -10,12 +10,13 @@ from .cube import CubeLUT
 from .flog2 import FLOG2
 from .gamut import BT709, F_GAMUT, RGBSpace, apply_matrix, conversion_matrix
 from .grain import add_grain
+from .hue import WARM_HUE_FILM_SIMS, x_series_warm_hue
 from .tone import tone_curve, x_series_shoulder
 
 
 @dataclass
 class Recipe:
-    film_sim: str = "provia"          # key into the LUT dict passed to render()
+    film_sim: str = "provia"          # key into the LUT dict passed to render(); "provia" also gets the warm-hue fix
     exposure_ev: float = 0.0          # exposure anchor offset, decided by ΔE sweep
     wb_shift: tuple[float, float] = (0.0, 0.0)  # Fujifilm R/B shift, -9..+9
     highlight: float = 0.0            # -2..+4
@@ -56,6 +57,8 @@ def render(
     log = FLOG2.encode(x)
     out = luts[recipe.film_sim].apply(np.clip(log, 0.0, 1.0))
     out = x_series_shoulder(out)
+    if recipe.film_sim in WARM_HUE_FILM_SIMS:
+        out = x_series_warm_hue(out)
     out = tone_curve(out, recipe.highlight, recipe.shadow)
     out = add_grain(out, recipe.grain_strength, recipe.grain_size, seed=seed)
     return np.clip(out, 0.0, 1.0)

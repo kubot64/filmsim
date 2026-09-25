@@ -149,6 +149,44 @@ final class MetalKernelTests: XCTestCase {
         }
     }
 
+    func testWarmHueMatchesPython() throws {
+        // research/tests/test_hue.py test_fitted_rotation_golden_points.
+        let cases: [(SIMD3<Double>, SIMD3<Double>)] = [
+            ([0.8, 0.2, 0.1], [0.8144788117, 0.1906360983, 0.1501228138]),
+            ([0.9, 0.55, 0.2], [0.9390028460, 0.5337492135, 0.2461296049]),
+            ([0.7, 0.7, 0.2], [0.7288390912, 0.6909850233, 0.2043811709]),
+            ([0.2, 0.4, 0.9], [0.2, 0.4, 0.9]),
+            ([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        ]
+        let k = try kernel("xSeriesWarmHue")
+        let input = image(cases.map { SIMD3<Float>($0.0) })
+        let out = render(k.apply(extent: input.extent, arguments: [input])!)
+        for ((rgb, expected), got) in zip(cases, out) {
+            for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
+        }
+    }
+
+    func testWarmHueMatchesSwiftAroundTheHueCircle() throws {
+        // 72 hues at two chroma levels, so the window edges and the wrap-around are covered.
+        var colours: [SIMD3<Double>] = []
+        for i in 0..<72 {
+            let t = Double(i) * 5 * .pi / 180
+            for r in [0.1, 0.25] {
+                let cb = r * cos(t), cr = r * sin(t), y = 0.5
+                let red = y + 1.5748 * cr, blue = y + 1.8556 * cb
+                let green = (y - 0.2126 * red - 0.0722 * blue) / 0.7152
+                colours.append(SIMD3(red, green, blue).clamped(lowerBound: .zero, upperBound: SIMD3(repeating: 1)))
+            }
+        }
+        let k = try kernel("xSeriesWarmHue")
+        let input = image(colours.map { SIMD3<Float>($0) })
+        let out = render(k.apply(extent: input.extent, arguments: [input])!)
+        for (rgb, got) in zip(colours, out) {
+            let expected = WarmHue.evaluate(rgb)
+            for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
+        }
+    }
+
     func testGrainApplyUsesPythonWeightAndAmplitude() throws {
         // research/filmsim/grain.py: out = c + noise * sqrt(L)(1-L)*2 * amp, L = BT.709 luma.
         // A constant noise image isolates the weight.

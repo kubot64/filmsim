@@ -4,48 +4,73 @@ import Foundation
 
 /// Core Image chain mirroring research/filmsim/pipeline.py.
 ///
-/// linear P3 -> WB gains -> exposure -> P3→F-Gamut matrix -> F-Log2 (Metal kernel) -> official LUT -> tone -> grain
+/// linear P3 → WB and exposure → P3→F-Gamut → F-Log2 → official LUT → tone → grain.
+/// The LUT is indexed by the F-Log2 code values themselves (`CIColorCube`, no color-space
+/// conversion). Its output is already BT.709 gamma; the caller tags the file, it does not
+/// convert again.
 public struct Pipeline {
-    public let flog2Kernel: CIColorKernel
+    public struct Kernels {
+        public let flog2: CIColorKernel
+        public let tone: CIColorKernel
+        public let grain: CIKernel
+
+        /// Loads kernels from the app's default.metallib. The .metal file lives in the app
+        /// target because CI kernels need `-fcikernel`.
+        public static func load(bundle: Bundle = .main) throws -> Kernels {
+            guard let url = bundle.url(forResource: "default", withExtension: "metallib") else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            let data = try Data(contentsOf: url)
+            return Kernels(
+                flog2: try CIColorKernel(functionName: "flog2Encode", fromMetalLibraryData: data),
+                tone: try CIColorKernel(functionName: "toneCurve", fromMetalLibraryData: data),
+                grain: try CIKernel(functionName: "grainApply", fromMetalLibraryData: data)
+            )
+        }
+    }
+
+    public let kernels: Kernels
     public let luts: [FilmSimulation: CubeLUT]
 
-    public init(flog2Kernel: CIColorKernel, luts: [FilmSimulation: CubeLUT]) {
-        self.flog2Kernel = flog2Kernel
+    public init(kernels: Kernels, luts: [FilmSimulation: CubeLUT]) {
+        self.kernels = kernels
         self.luts = luts
     }
 
-    /// Loads the `flog2Encode` CIColorKernel from the app's default.metallib
-    /// (the .metal file lives in the app target because CI kernels need `-fcikernel`).
-    public static func loadFLog2Kernel(bundle: Bundle = .main) throws -> CIColorKernel {
-        guard let url = bundle.url(forResource: "default", withExtension: "metallib") else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-        return try CIColorKernel(functionName: "flog2Encode", fromMetalLibraryData: try Data(contentsOf: url))
-    }
-
-    public func render(_ linear: CIImage, recipe: Recipe) -> CIImage? {
+    /// `grainPixelScale` multiplies the grain sigma. Pass the CIRAWFilter scale used for
+    /// a preview so grain stays the same size relative to the frame.
+    public func render(_ linear: CIImage, recipe: Recipe, grainPixelScale: Double = 1) -> CIImage? {
         guard let lut = luts[recipe.filmSimulation] else { return nil }
 
-        // WB shift + exposure, in linear.
         let gains = recipe.wbGains * pow(2, recipe.exposureEV)
         let m = RGBSpace.conversion(from: .displayP3, to: .fGamut)
+        let c = ColorMatrix.contributions(m, gains: gains)
         let matrixed = linear.applyingFilter("CIColorMatrix", parameters: [
-            "inputRVector": CIVector(x: m[0, 0] * gains.x, y: m[1, 0] * gains.y, z: m[2, 0] * gains.z, w: 0),
-            "inputGVector": CIVector(x: m[0, 1] * gains.x, y: m[1, 1] * gains.y, z: m[2, 1] * gains.z, w: 0),
-            "inputBVector": CIVector(x: m[0, 2] * gains.x, y: m[1, 2] * gains.y, z: m[2, 2] * gains.z, w: 0),
+            "inputRVector": CIVector(x: CGFloat(c.r.x), y: CGFloat(c.r.y), z: CGFloat(c.r.z), w: 0),
+            "inputGVector": CIVector(x: CGFloat(c.g.x), y: CGFloat(c.g.y), z: CGFloat(c.g.z), w: 0),
+            "inputBVector": CIVector(x: CGFloat(c.b.x), y: CGFloat(c.b.y), z: CGFloat(c.b.z), w: 0),
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0),
         ])
 
-        guard let logImage = flog2Kernel.apply(extent: matrixed.extent, arguments: [matrixed]) else { return nil }
+        guard let logImage = kernels.flog2.apply(extent: matrixed.extent, arguments: [matrixed]) else {
+            return nil
+        }
 
-        let cube = CIFilter.colorCubeWithColorSpace()
+        let cube = CIFilter.colorCube()
         cube.inputImage = logImage
         cube.cubeDimension = Float(lut.size)
         cube.cubeData = lut.rgbaData
-        cube.colorSpace = CGColorSpace(name: CGColorSpace.itur_709)
         guard var out = cube.outputImage else { return nil }
 
-        out = ToneCurve.apply(to: out, highlight: recipe.highlight, shadow: recipe.shadow)
-        out = Grain.apply(to: out, strength: recipe.grainStrength, size: recipe.grainSize)
+        out = ToneCurve.apply(to: out, highlight: recipe.highlight, shadow: recipe.shadow, kernel: kernels.tone)
+        out = Grain.apply(
+            to: out,
+            strength: recipe.grainStrength,
+            size: recipe.grainSize,
+            pixelScale: grainPixelScale,
+            kernel: kernels.grain
+        )
         return out
     }
 }

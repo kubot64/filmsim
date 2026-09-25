@@ -7,8 +7,8 @@ struct CameraView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            CameraPreview(session: camera.session)
-                .aspectRatio(3.0 / 2.0, contentMode: .fit) // 3:2 framing guide
+            CameraPreview(session: camera.session, zoom: camera.previewZoom)
+                .aspectRatio(3.0 / 2.0, contentMode: .fit)
                 .ignoresSafeArea()
             VStack(spacing: 8) {
                 Text(camera.status).font(.footnote).foregroundStyle(.white)

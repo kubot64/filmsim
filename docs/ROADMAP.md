@@ -9,8 +9,8 @@
    - 露出アンカーとハイライトの扱いを決める。ΔE の目標は中央値 3 以下
 3. **Classic Chrome で同じ検証**、その後 グレイン / H/S トーン / WB シフト を追加
 4. **Swift に移植**
-   - `FilmSimCore` の各ステップに Python の中間画像を期待値として持ち込む
-   - CIRAWFilter → 線形 → Metal の F-Log2 カーネル → CIColorCubeWithColorSpace
+   - 色行列、F-Log2、トーン、グレインの式は Python と一致済み。残るのは公式 LUT を通した中間画像の期待値
+   - CIRAWFilter → 線形 → Metal の F-Log2 カーネル → CIColorCube（色変換なしでログコードを引く）
 5. **カメラと保存**
    - RAW 撮影 → 現像 → HEIC + DNG を写真ライブラリへ
    - 3:2 クロップ、35mm 相当のセンサークロップ

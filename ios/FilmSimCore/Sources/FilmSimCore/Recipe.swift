@@ -4,6 +4,13 @@ public enum FilmSimulation: String, CaseIterable, Codable, Sendable {
     case provia
     case classicChrome
 
+    public var displayName: String {
+        switch self {
+        case .provia: return "Provia"
+        case .classicChrome: return "Classic Chrome"
+        }
+    }
+
     /// Resource name (without ".cube") of the official LUT in the app bundle.
     /// Files come from the GFX ETERNA 55 LUT package via scripts/fetch_luts.sh.
     public var lutFileName: String {

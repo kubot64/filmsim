@@ -8,6 +8,8 @@ public enum RawDeveloper {
         public var luminanceNoiseReduction: Float = 0.3   // Apple default is stronger than Fujifilm; tune (OPEN_QUESTIONS)
         public var colorNoiseReduction: Float = 0.5
         public var sharpness: Float = 0.0                  // sharpening is done later, if at all
+        /// 1 is full resolution. Previews pass a smaller value so demosaic matches the display size.
+        public var scaleFactor: Float = 1
         public init() {}
     }
 
@@ -22,6 +24,7 @@ public enum RawDeveloper {
         filter.luminanceNoiseReductionAmount = options.luminanceNoiseReduction
         filter.colorNoiseReductionAmount = options.colorNoiseReduction
         filter.sharpnessAmount = options.sharpness
+        filter.scaleFactor = options.scaleFactor
         filter.extendedDynamicRangeAmount = 0
         return filter.outputImage
     }

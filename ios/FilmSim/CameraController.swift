@@ -34,7 +34,7 @@ final class CameraController: NSObject, ObservableObject {
         self.device = device
         session.addInput(input)
         session.addOutput(output)
-        if AVCapturePhotoOutput.isAppleProRAWSupported {
+        if output.isAppleProRAWSupported {
             output.isAppleProRAWEnabled = false
         }
 

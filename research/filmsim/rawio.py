@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import rawpy
-from PIL import Image
+from PIL import Image, ImageOps
 
 
 def load_raw_linear(path: str | Path, space: str = "rec2020") -> np.ndarray:
@@ -29,8 +29,13 @@ def load_raw_linear(path: str | Path, space: str = "rec2020") -> np.ndarray:
 
 
 def load_srgb(path: str | Path) -> np.ndarray:
-    """Load an 8-bit sRGB image as encoded floats in [0, 1]."""
-    return np.asarray(Image.open(path).convert("RGB"), dtype=np.float32) / 255.0
+    """Load an 8-bit sRGB image as encoded floats in [0, 1], turned upright.
+
+    LibRaw applies the shot orientation, while a camera JPEG stores it as an EXIF
+    tag, so the JPEG is transposed here to match `load_raw_linear`.
+    """
+    img = ImageOps.exif_transpose(Image.open(path))
+    return np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
 
 
 def save_srgb(path: str | Path, img: np.ndarray) -> None:

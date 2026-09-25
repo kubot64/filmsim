@@ -2,7 +2,7 @@
 
 設計時に決める必要があるが、まだ結論が出ていないもの。
 
-- **露出アンカー**: CIRAWFilter の線形出力で「18% グレー」がどの値になるか。F-Log2 の 0.391 に合わせるためのゲインを、RAF ペアの ΔE スイープで決める（`compare_raf.py --sweep-ev`）
+- **露出アンカー**: CIRAWFilter の線形出力で「18% グレー」がどの値になるか。F-Log2 の 0.391 に合わせるためのゲインを、RAF ペアの ΔE スイープで決める（`compare_raf.py --sweep-ev`）。X100VI の Provia 撮って出し 4 組では、LibRaw の線形出力に対して DR100 で +1.12〜+1.25 EV、DR200 で +2.25 EV（DR200 はカメラが 1 段暗く撮る分）。このときの ΔE 中央値は 2.2〜3.2。LibRaw 基準の値なので iPhone の CIRAWFilter にはそのまま使えない
 - **ハイライトの余裕**: F-Log2 は 18% から +8 段以上を想定するが iPhone RAW のヘッドルームはもっと少ない。飽和部をどこで丸めるか
 - **CIRAWFilter のノイズ除去とシャープ**: Apple のデフォルトはフジより強い。`luminanceNoiseReductionAmount` 等をどこに固定するか
 - **48MP Bayer RAW の可否**: Pro / 無印での差異を実機で確認

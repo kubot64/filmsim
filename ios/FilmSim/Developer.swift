@@ -71,15 +71,18 @@ final class Developer {
             return .developFailed(setupError: setupError)
         }
         do {
+            // Two separate assets, created in one change block so both or neither land.
+            // Photos rejects the DNG as the HEIC's .alternatePhoto (PHPhotosErrorDomain 3300) on
+            // iPhone 15 Pro Max / iOS 26.6.2, while each saves fine alone. Likely because the HEIC
+            // is cropped and graded, so Photos does not treat it as the same picture as the RAW.
             try await PHPhotoLibrary.shared().performChanges {
-                let req = PHAssetCreationRequest.forAsset()
                 if let heic {
-                    req.addResource(with: .photo, data: heic, options: nil)
+                    PHAssetCreationRequest.forAsset().addResource(with: .photo, data: heic, options: nil)
                 }
                 if saveDNG {
                     let opts = PHAssetResourceCreationOptions()
                     opts.originalFilename = "FilmSim.DNG"
-                    req.addResource(with: heic == nil ? .photo : .alternatePhoto, data: rawData, options: opts)
+                    PHAssetCreationRequest.forAsset().addResource(with: .photo, data: rawData, options: opts)
                 }
             }
         } catch {

@@ -3,6 +3,7 @@
 1. **実機で 48MP Bayer RAW が撮れるか確認**（半日〜1日）
    - `ios/FilmSim` の CameraController を最小構成で動かし、`maxPhotoDimensions` 8064x6048 と Bayer RAW の組み合わせが通るか見る
    - Pro と無印で挙動差の報告あり。ここが崩れると入力形式の決定に戻る
+   - 結果（iPhone 15 Pro Max）：Bayer RAW は 12MP まで、48MP は ProRAW だけ。入力形式の決定に戻る（OPEN_QUESTIONS、#5）
 2. **Python で Provia を通す**（1〜2 週間）
    - 公式 LUT を `research/luts/official/` に置く
    - `uv run python scripts/compare_raf.py --raf X.RAF --jpeg X.JPG --lut Provia.cube --sweep-ev -2 2 0.25`

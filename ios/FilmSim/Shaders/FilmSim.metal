@@ -2,7 +2,7 @@
 #include <CoreImage/CoreImage.h>
 using namespace metal;
 
-// Must match FilmSimCore (FLog2.swift, ToneCurve.swift, Grain.swift)
+// Must match FilmSimCore (FLog2.swift, HighlightShoulder.swift, ToneCurve.swift, Grain.swift)
 // and research/filmsim (flog2.py, tone.py, grain.py).
 
 constant float FL2_A = 5.555556f;
@@ -22,6 +22,17 @@ extern "C" {
         float4 flog2Encode(sample_t s) {
             float3 lin = max(s.rgb, 0.0f);
             return float4(clamp(float3(flog2(lin.r), flog2(lin.g), flog2(lin.b)), 0.0f, 1.0f), s.a);
+        }
+
+        // research/filmsim/tone.py x_series_shoulder — lifts luma above 0.6 toward luma^0.5,
+        // scales RGB by the luma ratio so hue stays put. Below 0.6 and at 1.0 nothing moves.
+        float4 xSeriesShoulder(sample_t s) {
+            float3 c = clamp(s.rgb, 0.0f, 1.0f);
+            float y = dot(c, float3(0.2126f, 0.7152f, 0.0722f));
+            if (y <= 1e-6f) { return float4(c, s.a); }
+            float w = smoothstep(0.6f, 1.0f, y);
+            float lifted = y * (1.0f - w) + sqrt(y) * w;
+            return float4(clamp(c * (lifted / y), 0.0f, 1.0f), s.a);
         }
 
         // research/filmsim/tone.py — per channel, display-referred.

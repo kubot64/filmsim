@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
+from PIL import Image
 
-from filmsim.rawio import crop_center, resize_linear
+from filmsim.rawio import crop_center, load_srgb, resize_linear
 
 
 def test_crop_center_takes_the_middle():
@@ -33,3 +34,11 @@ def test_resize_linear_keeps_channels_apart():
     np.testing.assert_allclose(out[..., 0], 0.1, rtol=1e-5)
     np.testing.assert_allclose(out[..., 1], 0.0, atol=1e-7)
     np.testing.assert_allclose(out[..., 2], 0.9, rtol=1e-5)
+
+
+def test_load_srgb_applies_exif_orientation(tmp_path):
+    path = tmp_path / "portrait.jpg"
+    exif = Image.Exif()
+    exif[0x0112] = 6  # rotate 90° CW to display
+    Image.new("RGB", (8, 4)).save(path, exif=exif)
+    assert load_srgb(path).shape == (8, 4, 3)

@@ -2,7 +2,7 @@
 #include <CoreImage/CoreImage.h>
 using namespace metal;
 
-// Must match FilmSimCore (FLog2.swift, HighlightShoulder.swift, ToneCurve.swift, Grain.swift)
+// Must match FilmSimCore (FLog2.swift, HighlightShoulder.swift, WarmHue.swift, ToneCurve.swift, Grain.swift)
 // and research/filmsim (flog2.py, tone.py, grain.py).
 
 constant float FL2_A = 5.555556f;
@@ -33,6 +33,30 @@ extern "C" {
             float w = smoothstep(0.6f, 1.0f, y);
             float lifted = y * (1.0f - w) + sqrt(y) * w;
             return float4(clamp(c * (lifted / y), 0.0f, 1.0f), s.a);
+        }
+
+        // research/filmsim/hue.py x_series_warm_hue — Provia only. Turns the BT.709 Cb/Cr angle
+        // by up to -7 deg around 140 deg (raised cosine, width 80); Y' and chroma length stay put.
+        float4 xSeriesWarmHue(sample_t s) {
+            float3 c = clamp(s.rgb, 0.0f, 1.0f);
+            const float kr = 0.2126f, kb = 0.0722f, kg = 1.0f - kr - kb;
+            const float cbScale = 2.0f * (1.0f - kb), crScale = 2.0f * (1.0f - kr);
+            float y = kr * c.r + kg * c.g + kb * c.b;
+            float cb = (c.b - y) / cbScale;
+            float cr = (c.r - y) / crScale;
+            // Greys have no hue; atan2(0, 0) is NaN under fast math, and rotating nothing is a no-op.
+            if (cb * cb + cr * cr < 1e-12f) { return float4(c, s.a); }
+            float d = atan2(cr, cb) * (180.0f / M_PI_F) - 140.0f;
+            d = d - 360.0f * floor((d + 180.0f) / 360.0f);
+            if (fabs(d) >= 80.0f) { return float4(c, s.a); }
+            float t = -7.0f * (M_PI_F / 180.0f) * 0.5f * (1.0f + cos(M_PI_F * d / 80.0f));
+            float ct = cos(t), st = sin(t);
+            float cb2 = cb * ct - cr * st;
+            float cr2 = cb * st + cr * ct;
+            float r = y + crScale * cr2;
+            float b = y + cbScale * cb2;
+            float g = (y - kr * r - kb * b) / kg;
+            return float4(clamp(float3(r, g, b), 0.0f, 1.0f), s.a);
         }
 
         // research/filmsim/tone.py — per channel, display-referred.

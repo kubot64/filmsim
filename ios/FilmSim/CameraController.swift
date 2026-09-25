@@ -78,7 +78,9 @@ final class CameraController: NSObject, ObservableObject {
         // Raw formats are valid only after the configuration is committed.
         if let dims = photoDims {
             let bayer = output.availableRawPhotoPixelFormatTypes.filter { AVCapturePhotoOutput.isBayerRAWPixelFormat($0) }
-            status = "写真 \(dims.width)x\(dims.height)、Bayer RAW \(bayer.count)（候補 \(dimensionList)）"
+            // The requested size is not the RAW size: 48MP main cameras return 12MP Bayer RAW (#5).
+            // The real size is shown after the first capture.
+            status = "Bayer RAW \(bayer.count)（写真の最大 \(dims.width)x\(dims.height)、候補 \(dimensionList)）"
             isReady = !bayer.isEmpty
             if !isReady {
                 status += output.availableRawPhotoPixelFormatTypes.isEmpty ? " — RAW なし" : " — Bayer RAW なし"
@@ -113,6 +115,7 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
 
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
         let id = resolvedSettings.uniqueID
+        let rawDims = resolvedSettings.rawPhotoDimensions
         Task { @MainActor in
             guard let pending = self.inflight.removeValue(forKey: id) else { return }
             if let err = error { self.status = "撮影に失敗しました: \(err.localizedDescription)"; return }
@@ -121,7 +124,7 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 rawData: raw,
                 saveDNG: UserDefaults.standard.bool(forKey: "saveDNG")
             )
-            self.status = "RAW \(raw.count / 1_000_000)MB。\(saved.message)"
+            self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
         }
     }
 }

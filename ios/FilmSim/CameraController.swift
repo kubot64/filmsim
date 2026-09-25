@@ -24,12 +24,27 @@ final class CameraController: NSObject, ObservableObject {
         guard await AVCaptureDevice.requestAccess(for: .video) else {
             status = "カメラの許可がありません"; return
         }
+        // `.task` runs again each time the Camera tab reappears; configure the session only once.
+        guard device == nil else {
+            Task.detached { [session] in if !session.isRunning { session.startRunning() } }
+            return
+        }
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            status = "広角カメラがありません"; return
+        }
+        let input: AVCaptureDeviceInput
+        do {
+            input = try AVCaptureDeviceInput(device: device)
+        } catch {
+            status = "カメラを開けません: \(error.localizedDescription)"; return
+        }
         session.beginConfiguration()
         session.sessionPreset = .photo
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-              let input = try? AVCaptureDeviceInput(device: device),
-              session.canAddInput(input), session.canAddOutput(output) else {
-            status = "広角カメラがありません"; session.commitConfiguration(); return
+        guard session.canAddInput(input) else {
+            status = "カメラ入力を追加できません"; session.commitConfiguration(); return
+        }
+        guard session.canAddOutput(output) else {
+            status = "写真出力を追加できません"; session.commitConfiguration(); return
         }
         self.device = device
         session.addInput(input)
@@ -38,16 +53,13 @@ final class CameraController: NSObject, ObservableObject {
             output.isAppleProRAWEnabled = false
         }
 
-        // Pick the highest-resolution photo format (48MP on iPhone 15/16/17 main camera).
+        // Keep the format the .photo preset picks. The main camera lists two 48MP formats;
+        // on iPhone 15 Pro Max only the preset's one offers Bayer RAW,
+        // so choosing "the largest format" ourselves can land on one with no RAW at all.
+        let format = device.activeFormat
         var photoDims: CMVideoDimensions?
         var dimensionList = ""
-        if let format = device.formats
-            .filter({ $0.mediaType == .video })
-            .max(by: { ($0.supportedMaxPhotoDimensions.last?.width ?? 0) < ($1.supportedMaxPhotoDimensions.last?.width ?? 0) }),
-           let dims = format.supportedMaxPhotoDimensions.last {
-            try? device.lockForConfiguration()
-            device.activeFormat = format
-            device.unlockForConfiguration()
+        if let dims = format.supportedMaxPhotoDimensions.last {
             output.maxPhotoDimensions = dims
             let video = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
             if video.height > 0 {
@@ -83,7 +95,7 @@ final class CameraController: NSObject, ObservableObject {
         }
         let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
         settings.maxPhotoDimensions = output.maxPhotoDimensions
-        settings.photoQualityPrioritization = .quality
+        // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
         inflight[settings.uniqueID] = PendingCapture()
         output.capturePhoto(with: settings, delegate: self)
     }

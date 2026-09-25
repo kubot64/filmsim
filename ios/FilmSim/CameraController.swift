@@ -109,30 +109,8 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 rawData: raw,
                 saveDNG: UserDefaults.standard.bool(forKey: "saveDNG")
             )
-            self.status = "RAW \(raw.count / 1_000_000)MB。\(saved)"
+            self.status = "RAW \(raw.count / 1_000_000)MB。\(saved.message)"
         }
-    }
-}
-
-/// Extra zoom so a portrait 2:3 preview matches the 35mm crop after a 90° rotation.
-enum PreviewFraming {
-    /// 4:3 sensor, used until the active format's aspect is known.
-    static var defaultZoom: CGFloat {
-        CGFloat(SensorCrop.targetEquivalentMM / SensorCrop.wideEquivalentMM)
-    }
-
-    /// `sensorAspect` is the unrotated format width/height. The preview layer shows that
-    /// frame rotated 90° into a 2:3 view, which is the saved 3:2 crop turned upright.
-    static func zoom(sensorAspectWidthOverHeight sensorAspect: Double) -> Double {
-        guard sensorAspect > 0 else { return Double(defaultZoom) }
-        let displayedAspect = 1 / sensorAspect
-        let viewAspect = 2.0 / 3.0
-        let filledWidthFraction = displayedAspect <= viewAspect ? 1.0 : viewAspect / displayedAspect
-        let sensor = CGRect(x: 0, y: 0, width: CGFloat(sensorAspect), height: 1)
-        let crop = SensorCrop.rect35mmThreeByTwo(in: sensor)
-        let visibleWidthFraction = Double(crop.height / max(sensor.height, 1))
-        guard visibleWidthFraction > 0 else { return Double(defaultZoom) }
-        return filledWidthFraction / visibleWidthFraction
     }
 }
 
@@ -178,10 +156,18 @@ struct CameraPreview: UIViewRepresentable {
                 width: b.width * z,
                 height: b.height * z
             )
-            // The interface is portrait-locked. Keep the sensor image upright in that frame.
-            if let connection = videoPreviewLayer.connection, connection.isVideoRotationAngleSupported(90) {
-                connection.videoRotationAngle = 90
-            }
+            applyPortraitRotationIfNeeded()
+        }
+
+        /// The interface is portrait-locked. The connection exists once the session
+        /// configuration is committed, which can be before the first layout. Write 90°
+        /// only when the current angle is something else, so a reset is corrected
+        /// without assigning on every layout.
+        private func applyPortraitRotationIfNeeded() {
+            guard let connection = videoPreviewLayer.connection,
+                  connection.isVideoRotationAngleSupported(90),
+                  connection.videoRotationAngle != 90 else { return }
+            connection.videoRotationAngle = 90
         }
     }
 }

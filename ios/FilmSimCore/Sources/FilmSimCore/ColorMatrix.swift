@@ -21,6 +21,17 @@ public struct ColorMatrixVectors {
     public var gVector: CIVector { Self.vector(g) }
     public var bVector: CIVector { Self.vector(b) }
 
+    /// `CIColorMatrix` arguments. Alpha passes through and bias is zero, so only RGB moves.
+    public var ciColorMatrixParameters: [String: Any] {
+        [
+            "inputRVector": rVector,
+            "inputGVector": gVector,
+            "inputBVector": bVector,
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+        ]
+    }
+
     /// `matrix[column, row]`. Row `i` is `(M_i0 * gx, M_i1 * gy, M_i2 * gz)`.
     public static func contributions(_ matrix: double3x3, gains: SIMD3<Double>) -> ColorMatrixVectors {
         func row(_ i: Int) -> SIMD3<Double> {

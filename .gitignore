@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+research/out/
+
+# 再配布しないもの
+research/luts/official/*.cube
+research/samples/*
+!research/samples/README.md
+
+# Xcode / SwiftPM
+ios/FilmSim.xcodeproj/
+ios/**/xcuserdata/
+ios/**/.build/
+ios/**/DerivedData/
+*.xcuserstate
+
+# macOS
+.DS_Store
+ios/FilmSim/LUTs/*.cube

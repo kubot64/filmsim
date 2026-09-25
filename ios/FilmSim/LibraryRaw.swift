@@ -1,6 +1,7 @@
 import Foundation
 import Photos
 import PhotosUI
+import SwiftUI
 
 /// Loads the original DNG off a PhotosPicker item. `Data` transferable is often a JPEG.
 enum LibraryRaw {

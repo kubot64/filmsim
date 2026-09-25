@@ -15,7 +15,8 @@ def srgb_to_lab(img: np.ndarray) -> np.ndarray:
 def delta_e_stats(a: np.ndarray, b: np.ndarray) -> dict[str, float]:
     """Both inputs are decoded with the sRGB EOTF.
 
-    LUT output is BT.709 gamma, so this is not the same curve as the HEIC tag.
+    The camera JPEG is sRGB, and our code values are shown and saved as sRGB too
+    (docs/DESIGN.md, #13), so both sides use the same curve.
     """
     de = colour.delta_E(srgb_to_lab(a), srgb_to_lab(b), method="CIE 2000")
     return {

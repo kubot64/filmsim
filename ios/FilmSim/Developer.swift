@@ -4,7 +4,7 @@ import ImageIO
 import Photos
 import UniformTypeIdentifiers
 
-/// What `developAndSave` did. Screens share `developSaveMessage` for the Japanese status text.
+/// What `developAndSave` did. The screens turn this into Japanese status text.
 enum DevelopSaveResult {
     case permissionDenied
     case developFailed(setupError: String?)
@@ -12,23 +12,6 @@ enum DevelopSaveResult {
     case savedDNGOnly(setupError: String?)
     case savedHEICAndDNG
     case savedHEIC
-}
-
-func developSaveMessage(_ result: DevelopSaveResult) -> String {
-    switch result {
-    case .permissionDenied:
-        return "写真ライブラリへのアクセスが拒否されました"
-    case .developFailed(let setupError):
-        return setupError ?? "現像に失敗しました"
-    case .saveFailed(let localizedDescription):
-        return "保存に失敗しました: \(localizedDescription)"
-    case .savedDNGOnly(let setupError):
-        return "DNG のみ保存しました（\(setupError ?? "現像に失敗")）"
-    case .savedHEICAndDNG:
-        return "HEIC と DNG を保存しました"
-    case .savedHEIC:
-        return "HEIC を保存しました"
-    }
 }
 
 /// Runs the FilmSimCore pipeline on a DNG and writes HEIC (+ optional DNG) to the photo library.

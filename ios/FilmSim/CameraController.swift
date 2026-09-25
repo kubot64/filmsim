@@ -109,7 +109,7 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 rawData: raw,
                 saveDNG: UserDefaults.standard.bool(forKey: "saveDNG")
             )
-            self.status = "RAW \(raw.count / 1_000_000)MB。\(developSaveMessage(saved))"
+            self.status = "RAW \(raw.count / 1_000_000)MB。\(saved.message)"
         }
     }
 }
@@ -136,8 +136,6 @@ struct CameraPreview: UIViewRepresentable {
     final class PreviewView: UIView {
         let videoPreviewLayer = AVCaptureVideoPreviewLayer()
         var zoom: CGFloat = PreviewFraming.defaultZoom
-        /// Connection that already received the portrait angle. A new connection is set once.
-        private weak var rotatedConnection: AVCaptureConnection?
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -161,15 +159,15 @@ struct CameraPreview: UIViewRepresentable {
             applyPortraitRotationIfNeeded()
         }
 
-        /// The connection stays nil until the session is running. The interface is
-        /// portrait-locked, so stand the sensor image upright once per connection
-        /// instead of writing the angle on every layout.
+        /// The interface is portrait-locked. The connection exists once the session
+        /// configuration is committed, which can be before the first layout. Write 90°
+        /// only when the current angle is something else, so a reset is corrected
+        /// without assigning on every layout.
         private func applyPortraitRotationIfNeeded() {
             guard let connection = videoPreviewLayer.connection,
-                  connection !== rotatedConnection,
-                  connection.isVideoRotationAngleSupported(90) else { return }
+                  connection.isVideoRotationAngleSupported(90),
+                  connection.videoRotationAngle != 90 else { return }
             connection.videoRotationAngle = 90
-            rotatedConnection = connection
         }
     }
 }

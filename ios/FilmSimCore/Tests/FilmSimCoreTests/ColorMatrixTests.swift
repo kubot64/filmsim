@@ -51,13 +51,7 @@ final class ColorMatrixTests: XCTestCase {
             return .zero
         }
         let image = CIImage(color: color).cropped(to: CGRect(x: 0, y: 0, width: 1, height: 1))
-        let filtered = image.applyingFilter("CIColorMatrix", parameters: [
-            "inputRVector": vectors.rVector,
-            "inputGVector": vectors.gVector,
-            "inputBVector": vectors.bVector,
-            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-        ])
+        let filtered = image.applyingFilter("CIColorMatrix", parameters: vectors.ciColorMatrixParameters)
         var pixel = [Float](repeating: 0, count: 4)
         pixel.withUnsafeMutableBytes { raw in
             context.render(

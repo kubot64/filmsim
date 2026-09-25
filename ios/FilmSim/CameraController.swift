@@ -109,30 +109,8 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 rawData: raw,
                 saveDNG: UserDefaults.standard.bool(forKey: "saveDNG")
             )
-            self.status = "RAW \(raw.count / 1_000_000)MB。\(saved)"
+            self.status = "RAW \(raw.count / 1_000_000)MB。\(developSaveMessage(saved))"
         }
-    }
-}
-
-/// Extra zoom so a portrait 2:3 preview matches the 35mm crop after a 90° rotation.
-enum PreviewFraming {
-    /// 4:3 sensor, used until the active format's aspect is known.
-    static var defaultZoom: CGFloat {
-        CGFloat(SensorCrop.targetEquivalentMM / SensorCrop.wideEquivalentMM)
-    }
-
-    /// `sensorAspect` is the unrotated format width/height. The preview layer shows that
-    /// frame rotated 90° into a 2:3 view, which is the saved 3:2 crop turned upright.
-    static func zoom(sensorAspectWidthOverHeight sensorAspect: Double) -> Double {
-        guard sensorAspect > 0 else { return Double(defaultZoom) }
-        let displayedAspect = 1 / sensorAspect
-        let viewAspect = 2.0 / 3.0
-        let filledWidthFraction = displayedAspect <= viewAspect ? 1.0 : viewAspect / displayedAspect
-        let sensor = CGRect(x: 0, y: 0, width: CGFloat(sensorAspect), height: 1)
-        let crop = SensorCrop.rect35mmThreeByTwo(in: sensor)
-        let visibleWidthFraction = Double(crop.height / max(sensor.height, 1))
-        guard visibleWidthFraction > 0 else { return Double(defaultZoom) }
-        return filledWidthFraction / visibleWidthFraction
     }
 }
 
@@ -158,6 +136,8 @@ struct CameraPreview: UIViewRepresentable {
     final class PreviewView: UIView {
         let videoPreviewLayer = AVCaptureVideoPreviewLayer()
         var zoom: CGFloat = PreviewFraming.defaultZoom
+        /// Connection that already received the portrait angle. A new connection is set once.
+        private weak var rotatedConnection: AVCaptureConnection?
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -178,10 +158,18 @@ struct CameraPreview: UIViewRepresentable {
                 width: b.width * z,
                 height: b.height * z
             )
-            // The interface is portrait-locked. Keep the sensor image upright in that frame.
-            if let connection = videoPreviewLayer.connection, connection.isVideoRotationAngleSupported(90) {
-                connection.videoRotationAngle = 90
-            }
+            applyPortraitRotationIfNeeded()
+        }
+
+        /// The connection stays nil until the session is running. The interface is
+        /// portrait-locked, so stand the sensor image upright once per connection
+        /// instead of writing the angle on every layout.
+        private func applyPortraitRotationIfNeeded() {
+            guard let connection = videoPreviewLayer.connection,
+                  connection !== rotatedConnection,
+                  connection.isVideoRotationAngleSupported(90) else { return }
+            connection.videoRotationAngle = 90
+            rotatedConnection = connection
         }
     }
 }

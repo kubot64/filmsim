@@ -120,6 +120,7 @@ struct DevelopView: View {
 
     private func save() async {
         guard let rawData else { return }
-        message = await Developer.shared.developAndSave(rawData: rawData, saveDNG: false, recipe: recipe)
+        let result = await Developer.shared.developAndSave(rawData: rawData, saveDNG: false, recipe: recipe)
+        message = developSaveMessage(result)
     }
 }

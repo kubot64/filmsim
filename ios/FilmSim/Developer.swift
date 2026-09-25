@@ -4,6 +4,33 @@ import ImageIO
 import Photos
 import UniformTypeIdentifiers
 
+/// What `developAndSave` did. Screens share `developSaveMessage` for the Japanese status text.
+enum DevelopSaveResult {
+    case permissionDenied
+    case developFailed(setupError: String?)
+    case saveFailed(localizedDescription: String)
+    case savedDNGOnly(setupError: String?)
+    case savedHEICAndDNG
+    case savedHEIC
+}
+
+func developSaveMessage(_ result: DevelopSaveResult) -> String {
+    switch result {
+    case .permissionDenied:
+        return "写真ライブラリへのアクセスが拒否されました"
+    case .developFailed(let setupError):
+        return setupError ?? "現像に失敗しました"
+    case .saveFailed(let localizedDescription):
+        return "保存に失敗しました: \(localizedDescription)"
+    case .savedDNGOnly(let setupError):
+        return "DNG のみ保存しました（\(setupError ?? "現像に失敗")）"
+    case .savedHEICAndDNG:
+        return "HEIC と DNG を保存しました"
+    case .savedHEIC:
+        return "HEIC を保存しました"
+    }
+}
+
 /// Runs the FilmSimCore pipeline on a DNG and writes HEIC (+ optional DNG) to the photo library.
 @MainActor
 final class Developer {
@@ -47,8 +74,8 @@ final class Developer {
         return await Task.detached(priority: .userInitiated) { box.cgImage() }.value
     }
 
-    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe = Recipe()) async -> String {
-        guard await authorizeAdd() else { return "写真ライブラリへのアクセスが拒否されました" }
+    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe = Recipe()) async -> DevelopSaveResult {
+        guard await authorizeAdd() else { return .permissionDenied }
         let heic: Data?
         if let pipeline {
             let box = RenderBox(pipeline: pipeline, context: context, recipe: recipe, rawData: rawData, scaleFactor: 1)
@@ -57,7 +84,7 @@ final class Developer {
             heic = nil
         }
         if heic == nil && !saveDNG {
-            return setupError ?? "現像に失敗しました"
+            return .developFailed(setupError: setupError)
         }
         do {
             try await PHPhotoLibrary.shared().performChanges {
@@ -72,10 +99,10 @@ final class Developer {
                 }
             }
         } catch {
-            return "保存に失敗しました: \(error.localizedDescription)"
+            return .saveFailed(localizedDescription: error.localizedDescription)
         }
-        if heic == nil { return "DNG のみ保存しました（\(setupError ?? "現像に失敗")）" }
-        return saveDNG ? "HEIC と DNG を保存しました" : "HEIC を保存しました"
+        if heic == nil { return .savedDNGOnly(setupError: setupError) }
+        return saveDNG ? .savedHEICAndDNG : .savedHEIC
     }
 
     private func authorizeAdd() async -> Bool {

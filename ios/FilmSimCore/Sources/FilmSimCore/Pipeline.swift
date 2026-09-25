@@ -45,13 +45,7 @@ public struct Pipeline {
         let gains = recipe.wbGains * pow(2, recipe.exposureEV)
         let m = RGBSpace.conversion(from: .displayP3, to: .fGamut)
         let c = ColorMatrixVectors.contributions(m, gains: gains)
-        let matrixed = linear.applyingFilter("CIColorMatrix", parameters: [
-            "inputRVector": c.rVector,
-            "inputGVector": c.gVector,
-            "inputBVector": c.bVector,
-            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-        ])
+        let matrixed = linear.applyingFilter("CIColorMatrix", parameters: c.ciColorMatrixParameters)
 
         guard let logImage = kernels.flog2.apply(extent: matrixed.extent, arguments: [matrixed]) else {
             return nil

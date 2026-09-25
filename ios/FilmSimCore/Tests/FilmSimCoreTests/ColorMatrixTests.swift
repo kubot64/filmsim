@@ -41,12 +41,16 @@ final class ColorMatrixTests: XCTestCase {
         XCTAssertEqual(red.z, m[0, 2] * 2, accuracy: 1e-4)
     }
 
-    private func render(red: Double, green: Double, blue: Double, vectors: ColorMatrixVectors) -> SIMD3<Float> {
+    private func render(red: Double, green: Double, blue: Double, vectors: ColorMatrixVectors) -> SIMD3<Double> {
         let space = CGColorSpace(name: CGColorSpace.linearSRGB)!
         let context = CIContext(options: [.workingColorSpace: space])
-        let image = CIImage(color: CIColor(
+        guard let color = CIColor(
             red: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue), alpha: 1, colorSpace: space
-        )).cropped(to: CGRect(x: 0, y: 0, width: 1, height: 1))
+        ) else {
+            XCTFail("CIColor init failed")
+            return .zero
+        }
+        let image = CIImage(color: color).cropped(to: CGRect(x: 0, y: 0, width: 1, height: 1))
         let filtered = image.applyingFilter("CIColorMatrix", parameters: [
             "inputRVector": vectors.rVector,
             "inputGVector": vectors.gVector,
@@ -65,6 +69,6 @@ final class ColorMatrixTests: XCTestCase {
                 colorSpace: space
             )
         }
-        return SIMD3(pixel[0], pixel[1], pixel[2])
+        return SIMD3(Double(pixel[0]), Double(pixel[1]), Double(pixel[2]))
     }
 }

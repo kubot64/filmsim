@@ -6,8 +6,8 @@ import Foundation
 ///
 /// linear P3 → WB and exposure → P3→F-Gamut → F-Log2 → official LUT → tone → grain.
 /// The LUT is indexed by the F-Log2 code values themselves (`CIColorCube`, no color-space
-/// conversion). Its output is already BT.709 gamma; the caller tags the file, it does not
-/// convert again.
+/// conversion). Its output is BT.709-gamma codes; the caller tags them as sRGB and does
+/// not convert again.
 public struct Pipeline {
     public struct Kernels {
         public let flog2: CIColorKernel

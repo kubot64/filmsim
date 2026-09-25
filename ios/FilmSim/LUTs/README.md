@@ -1,3 +1,7 @@
-公式 LUT（`F-Log2_FGamut_to_PROVIA.cube`, `F-Log2_FGamut_to_CLASSIC_CHROME.cube`）をここに置く。
+`scripts/fetch_luts.sh` がここに公式 LUT を置く。
+
+- `FLog2_to_PROVIA_65grid_V.1.00.cube`
+- `FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube`
+
 ファイル名は `FilmSimCore/Recipe.swift` の `lutFileName` と一致させること。
-.cube は git 管理外。
+.cube は git 管理外。XcodeGen がこのフォルダをアプリのリソースとして取り込む。

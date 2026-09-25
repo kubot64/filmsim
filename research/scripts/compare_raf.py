@@ -3,7 +3,7 @@
 Example:
     uv run python scripts/compare_raf.py \
         --raf samples/DSCF0001.RAF --jpeg samples/DSCF0001.JPG \
-        --lut luts/official/F-Log2_FGamut_to_PROVIA.cube --sweep-ev -2 2 0.25
+        --lut luts/official/FLog2_to_PROVIA_65grid_V.1.00.cube --sweep-ev -2 2 0.25
 
 The EV sweep is how the exposure anchor gets decided (docs/OPEN_QUESTIONS.md).
 """

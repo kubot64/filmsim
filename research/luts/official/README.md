@@ -1,10 +1,11 @@
 # 公式 LUT の置き場
 
-https://www.fujifilm-x.com/global/support/download/lut/ から
-「F-Log2 / F-Log2C → Film Simulation」の .cube をダウンロードしてここに置く。
+`scripts/fetch_luts.sh` を実行すると、GFX ETERNA 55 用パッケージから次の 2 本がここに入る。
 
-- 使うのは **F-Log2 → 各シミュレーション** のもの（F-Log2C ではない）
-- 出力は BT.709 ガンマ想定
-- 再配布しないので `.cube` は git 管理外（.gitignore 済み）
+- `FLog2_to_PROVIA_65grid_V.1.00.cube`
+- `FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube`
 
-初期スコープ: PROVIA と CLASSIC CHROME の 2 つ。
+- 入力は F-Log2 / F-Gamut、出力は BT.709 ガンマ
+- 65 grid を使う（33 grid も同梱されているが精度で劣る）
+- `.cube` は再配布しないので git 管理外（.gitignore 済み）
+- ヘッダの `#model:` は GFX ETERNA 55。機種固有の微調整が入っている可能性は ΔE 検証で確認する（docs/OPEN_QUESTIONS.md）

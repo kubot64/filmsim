@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/scripts/fetch_luts.sh || echo 'fetch_luts failed; tests still run with identity LUT fixtures'"
+          }
+        ]
+      }
+    ]
+  }
+}

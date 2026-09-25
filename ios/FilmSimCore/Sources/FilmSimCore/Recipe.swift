@@ -4,11 +4,12 @@ public enum FilmSimulation: String, CaseIterable, Codable, Sendable {
     case provia
     case classicChrome
 
-    /// File name of the official LUT inside the app bundle (user supplies the files).
+    /// Resource name (without ".cube") of the official LUT in the app bundle.
+    /// Files come from the GFX ETERNA 55 LUT package via scripts/fetch_luts.sh.
     public var lutFileName: String {
         switch self {
-        case .provia: return "F-Log2_FGamut_to_PROVIA"
-        case .classicChrome: return "F-Log2_FGamut_to_CLASSIC_CHROME"
+        case .provia: return "FLog2_to_PROVIA_65grid_V.1.00"
+        case .classicChrome: return "FLog2_to_CLASSIC-CHROME_65grid_V.1.00"
         }
     }
 }

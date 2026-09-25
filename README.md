@@ -23,6 +23,9 @@ cd ios && xcodegen generate && open FilmSim.xcodeproj
 
 ## 公式 LUT と検証データ
 
-- 公式 LUT: https://www.fujifilm-x.com/global/support/download/lut/ から取得し `research/luts/official/` に置く（再配布しないので git 管理外）
+- 公式 LUT は `scripts/fetch_luts.sh` が取得して `research/luts/official/` と `ios/FilmSim/LUTs/` に置く（git 管理外）
+  - Claude Code では `.claude/settings.json` の SessionStart フックで自動実行される。クラウド環境では `dl.fujifilm-x.com` への通信許可が必要
+  - Provia / Classic Chrome を含む 10 種の F-Log2 用 LUT は GFX ETERNA 55 用パッケージにしか入っていない（X100VI 用は ETERNA 系のみ）
+  - 配布元: https://www.fujifilm-x.com/global/support/download/lut/
 - F-Log2 データシート: https://dl.fujifilm-x.com/technical-data/F-Log2_DataSheet_E_Ver.1.1.pdf
 - 検証用 RAF + JPEG: `research/samples/README.md` を参照

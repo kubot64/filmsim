@@ -2,7 +2,7 @@
 
 Example:
     uv run python scripts/render.py --raw IMG_0001.DNG \
-        --lut luts/official/F-Log2_FGamut_to_CLASSIC_CHROME.cube \
+        --lut luts/official/FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube \
         --ev 0.5 --wb 2 -4 --highlight -1 --shadow 1 --grain weak --out out/IMG_0001.png
 """
 

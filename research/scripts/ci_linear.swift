@@ -30,7 +30,7 @@ filter.luminanceNoiseReductionAmount = 0.3
 filter.colorNoiseReductionAmount = 0.5
 filter.sharpnessAmount = 0
 filter.scaleFactor = 1
-filter.extendedDynamicRangeAmount = 0
+filter.extendedDynamicRangeAmount = 1  // keep values above 1.0 (#24)
 guard let image = filter.outputImage else { exit(1) }
 
 let rect = image.extent.integral

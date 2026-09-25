@@ -20,7 +20,8 @@ final class Developer {
     static let shared = Developer()
 
     /// Working space matches the linear P3 the matrix expects. Output pixels are retagged
-    /// as BT.709 without a second conversion — the LUT already emitted 709-gamma code values.
+    /// as sRGB without converting them. The codes are BT.709 gamma; the sRGB tag matches
+    /// the EOTF used for ΔE.
     private let context = CIContext(options: [
         .workingColorSpace: CGColorSpace(name: CGColorSpace.linearDisplayP3)!,
         .outputColorSpace: CGColorSpace(name: CGColorSpace.linearDisplayP3)!,
@@ -136,13 +137,13 @@ private final class RenderBox: @unchecked Sendable {
     }
 
     private static let linearP3 = CGColorSpace(name: CGColorSpace.linearDisplayP3)!
-    private static let bt709 = CGColorSpace(name: CGColorSpace.itur_709)!
+    private static let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
 
     private static func displayCGImage(_ image: CIImage, context: CIContext) -> CGImage? {
         let rect = image.extent.integral
         guard rect.width > 1, rect.height > 1,
               let rendered = context.createCGImage(image, from: rect, format: .RGBA8, colorSpace: linearP3),
-              let tagged = retag(rendered, as: bt709) else { return nil }
+              let tagged = retag(rendered, as: sRGB) else { return nil }
         return tagged
     }
 

@@ -17,9 +17,11 @@ import numpy as np
 
 from filmsim import CubeLUT, Recipe, render
 from filmsim.metrics import delta_e_stats
-from filmsim.rawio import load_raw_linear, load_srgb, resize_to, save_srgb
+from filmsim.rawio import crop_center, load_raw_linear, load_srgb, resize_linear, resize_to, save_srgb
 
-COMPARE_WIDTH = 1200  # compare at reduced size: ΔE is about colour, not sharpness
+# Compare at reduced size: ΔE is about colour, not sharpness. The linear image is
+# shrunk before rendering, so each EV step renders ~1M pixels instead of ~40M.
+COMPARE_WIDTH = 1200
 
 
 def main() -> None:
@@ -33,10 +35,11 @@ def main() -> None:
     args = ap.parse_args()
 
     lut = CubeLUT.load(args.lut)
-    linear = load_raw_linear(args.raf)
     ref = load_srgb(args.jpeg)
-    h, w = linear.shape[:2]
+    h, w = ref.shape[:2]
+    linear = crop_center(load_raw_linear(args.raf), h, w)
     size = (COMPARE_WIDTH, round(COMPARE_WIDTH * h / w))
+    linear_small = resize_linear(linear, size)
     ref_small = resize_to(ref, size)
 
     evs = [args.ev]
@@ -46,8 +49,7 @@ def main() -> None:
 
     best = None
     for ev in evs:
-        out = render(linear, Recipe(film_sim="lut", exposure_ev=ev), {"lut": lut})
-        out_small = resize_to(out, size)
+        out_small = render(linear_small, Recipe(film_sim="lut", exposure_ev=ev), {"lut": lut})
         stats = delta_e_stats(out_small, ref_small)
         print(f"ev={ev:+.2f}  " + "  ".join(f"{k}={v:.2f}" for k, v in stats.items()))
         if best is None or stats["median"] < best[1]["median"]:

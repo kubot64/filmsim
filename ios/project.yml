@@ -28,4 +28,4 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         # Core Image kernels written in Metal need these two flags.
         MTL_COMPILER_FLAGS: "-fcikernel"
-        MTLLINKER_FLAGS: "-cikernel"
+        MTLLINKER_FLAGS: "-fcikernel"

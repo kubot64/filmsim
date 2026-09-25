@@ -9,17 +9,13 @@ with one flat surface, which the camera meters to middle grey), and the raw
 headroom above the centre. Every DNG is rendered through the LUT at each --ev and
 laid out in one contact sheet, one row per DNG.
 
-The linear image comes from CIRAWFilter (scripts/ci_linear.swift, same settings as
-RawDeveloper.developLinear), so this runs on macOS only. The helper is compiled
-into out/bin on first use.
+The linear image comes from CIRAWFilter (filmsim.ciraw, same settings as
+RawDeveloper.developLinear), so this runs on macOS only.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
-import subprocess
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -27,31 +23,14 @@ import rawpy
 from PIL import Image, ImageDraw
 
 from filmsim import BT2020, P3_D65, CubeLUT, Recipe, render
+from filmsim.ciraw import load_raw_linear_ciraw
 from filmsim.anchor import MIDDLE_GREY, center_region, headroom_stops, luminance, metered_anchor_ev
 from filmsim.rawio import load_raw_linear, resize_linear
 
 HERE = Path(__file__).resolve().parent
 RESEARCH = HERE.parent
-HELPER_SRC = HERE / "ci_linear.swift"
-HELPER_BIN = RESEARCH / "out" / "bin" / "ci_linear"
 DEFAULT_LUT = RESEARCH / "luts" / "official" / "FLog2_to_PROVIA_65grid_V.1.00.cube"
 SHEET_WIDTH = 480
-
-
-def helper() -> Path:
-    if not HELPER_BIN.exists() or HELPER_BIN.stat().st_mtime < HELPER_SRC.stat().st_mtime:
-        HELPER_BIN.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["swiftc", "-O", "-o", str(HELPER_BIN), str(HELPER_SRC)], check=True)
-    return HELPER_BIN
-
-
-def ci_linear(path: Path) -> tuple[np.ndarray, dict]:
-    """Upright linear Display P3 image from CIRAWFilter, plus size and EXIF."""
-    with tempfile.NamedTemporaryFile(suffix=".f32") as tmp:
-        out = subprocess.run([str(helper()), str(path), tmp.name], check=True, capture_output=True, text=True)
-        info = json.loads(out.stdout)
-        img = np.fromfile(tmp.name, dtype=np.float32).reshape(info["height"], info["width"], 3)
-    return img, info
 
 
 def raw_green_center(path: Path) -> float:
@@ -86,7 +65,7 @@ def main() -> None:
 
     rows = []
     for path in args.dng:
-        linear, info = ci_linear(path)
+        linear, info = load_raw_linear_ciraw(path)
         y = float(np.median(luminance(center_region(linear), P3_D65)))
         raw_g = raw_green_center(path)
         e = info["exif"]

@@ -10,7 +10,7 @@ from .cube import CubeLUT
 from .flog2 import FLOG2
 from .gamut import BT709, F_GAMUT, RGBSpace, apply_matrix, conversion_matrix
 from .grain import add_grain
-from .tone import tone_curve
+from .tone import tone_curve, x_series_shoulder
 
 
 @dataclass
@@ -55,6 +55,7 @@ def render(
     x = np.clip(x, 0.0, None)
     log = FLOG2.encode(x)
     out = luts[recipe.film_sim].apply(np.clip(log, 0.0, 1.0))
+    out = x_series_shoulder(out)
     out = tone_curve(out, recipe.highlight, recipe.shadow)
     out = add_grain(out, recipe.grain_strength, recipe.grain_size, seed=seed)
     return np.clip(out, 0.0, 1.0)

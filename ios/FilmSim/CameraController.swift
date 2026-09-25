@@ -17,6 +17,8 @@ final class CameraController: NSObject, ObservableObject {
     @Published var previewZoom: CGFloat = PreviewFraming.defaultZoom
 
     struct PendingCapture {
+        /// The recipe when the shutter was pressed; a later change applies to the next shot.
+        let recipe: Recipe
         var rawData: Data?
         var processedData: Data?
     }
@@ -91,7 +93,7 @@ final class CameraController: NSObject, ObservableObject {
         Task.detached { [session] in session.startRunning() }
     }
 
-    func capture() {
+    func capture(recipe: Recipe) {
         // Bayer RAW (not ProRAW): works on non-Pro models too.
         guard let rawType = output.availableRawPhotoPixelFormatTypes.first(where: { AVCapturePhotoOutput.isBayerRAWPixelFormat($0) }) else {
             status = "Bayer RAW のピクセルフォーマットがありません"; return
@@ -99,7 +101,7 @@ final class CameraController: NSObject, ObservableObject {
         let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
         settings.maxPhotoDimensions = output.maxPhotoDimensions
         // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
-        inflight[settings.uniqueID] = PendingCapture()
+        inflight[settings.uniqueID] = PendingCapture(recipe: recipe)
         output.capturePhoto(with: settings, delegate: self)
     }
 }
@@ -123,7 +125,8 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             guard let raw = pending.rawData else { self.status = "RAW データが返りませんでした"; return }
             let saved = await Developer.shared.developAndSave(
                 rawData: raw,
-                saveDNG: UserDefaults.standard.bool(forKey: "saveDNG")
+                saveDNG: UserDefaults.standard.bool(forKey: "saveDNG"),
+                recipe: pending.recipe
             )
             self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
         }

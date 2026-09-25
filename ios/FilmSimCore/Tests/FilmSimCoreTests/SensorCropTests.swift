@@ -22,12 +22,4 @@ final class SensorCropTests: XCTestCase {
         XCTAssertEqual(r.width, CGFloat(600), accuracy: 1e-6)
         XCTAssertEqual(r.midX, extent.midX, accuracy: 1e-6)
     }
-
-    func testPreviewZoomForFourByThree() {
-        XCTAssertEqual(SensorCrop.previewZoom(videoAspectWidthOverHeight: 4.0 / 3.0), 35.0 / 24.0, accuracy: 1e-9)
-    }
-
-    func testPreviewZoomForSixteenByNine() {
-        XCTAssertEqual(SensorCrop.previewZoom(videoAspectWidthOverHeight: 16.0 / 9.0), 1.23046875, accuracy: 1e-9)
-    }
 }

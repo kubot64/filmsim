@@ -1,6 +1,8 @@
 import numpy as np
+import pytest
+from scipy.ndimage import gaussian_filter
 
-from filmsim.grain import add_grain, grain_weight
+from filmsim.grain import add_grain, grain_weight, unit_noise_gain
 
 
 def test_weight_fades_at_extremes():
@@ -28,3 +30,16 @@ def test_amplitude_follows_weight():
     assert energy(mid) > energy(white)
     assert energy(black) == 0
     assert energy(white) == 0
+
+
+def test_unit_noise_gain_matches_swift_constants():
+    # Locked to GrainTests.testUnitNoiseGainMatchesScipyKernel.
+    assert unit_noise_gain(0.6) == pytest.approx(6.991621, abs=1e-4)
+    assert unit_noise_gain(1.1) == pytest.approx(13.507091, abs=1e-4)
+
+
+def test_unit_noise_gain_matches_empirical_blur():
+    rng = np.random.default_rng(0)
+    for sigma in (0.6, 1.1):
+        blurred = gaussian_filter(rng.random((800, 800)) - 0.5, sigma)
+        assert unit_noise_gain(sigma) == pytest.approx(1.0 / float(blurred.std()), rel=0.01)

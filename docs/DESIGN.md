@@ -40,7 +40,7 @@ Bayer RAW (DNG)
 
 LUT は F-Log2 のコード値をそのまま引く。出力は BT.709 ガンマなので、HEIC には追加の色変換をしない。P3 へ広げる変換はしない。
 
-トーンとグレインの式は `research/filmsim/tone.py` と `grain.py` を正とし、Swift / Metal はそれに合わせる。色行列は線形 RGB に WB と露出を掛けてから P3 → F-Gamut する（`out = M · (rgb × gains)`）。プレビューのグレイン粒径だけ解像度に比例させる。
+トーンとグレインの重み・振幅・σ は `research/filmsim/tone.py` と `grain.py` を正とし、Swift / Metal はそれに合わせる。グレインの乱数分布は一致しない。Python は正規乱数で、iOS は `CIRandomGenerator` の一様乱数をぼかして標準偏差だけ `grain.unit_noise_gain` に合わせている。σ=0.6 では分布の形が違う。色行列は線形 RGB に WB と露出を掛けてから P3 → F-Gamut する（`out = M · (rgb × gains)`）。プレビューのグレイン粒径だけ解像度に比例させる。
 
 ## スコープ
 

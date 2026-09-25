@@ -2,6 +2,7 @@ import Foundation
 import Photos
 import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Loads the original DNG off a PhotosPicker item. `Data` transferable is often a JPEG.
 enum LibraryRaw {
@@ -43,10 +44,8 @@ enum LibraryRaw {
 
     private static func isRaw(_ resource: PHAssetResource) -> Bool {
         if resource.type == .alternatePhoto { return true }
-        let name = resource.originalFilename.lowercased()
-        if name.hasSuffix(".dng") || name.hasSuffix(".raf") || name.hasSuffix(".raw") { return true }
-        let uti = resource.uniformTypeIdentifier.lowercased()
-        return uti.contains("raw") || uti.contains("dng")
+        guard let type = UTType(resource.uniformTypeIdentifier) else { return false }
+        return type.conforms(to: .rawImage)
     }
 
     private static func requestData(_ resource: PHAssetResource) async throws -> Data {

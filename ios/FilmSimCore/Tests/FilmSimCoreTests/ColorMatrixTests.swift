@@ -1,27 +1,70 @@
+import CoreImage
 import XCTest
 import simd
 @testable import FilmSimCore
 
 final class ColorMatrixTests: XCTestCase {
-    func testRedContributionIsScaledColumn() {
-        let m = RGBSpace.bt709.toXYZ
-        let v = ColorMatrix.contributions(m, gains: SIMD3(2, 3, 4))
-        // Known BT.709 → XYZ columns, so a transposed matrix fails this.
-        XCTAssertEqual(v.r.x, 0.4124 * 2, accuracy: 2e-4)
-        XCTAssertEqual(v.r.y, 0.2126 * 2, accuracy: 2e-4)
-        XCTAssertEqual(v.g.y, 0.7152 * 3, accuracy: 2e-4)
-        XCTAssertEqual(v.b.z, 0.9505 * 4, accuracy: 2e-4)
+    func testCIColorMatrixDotsTheInputWithEachVector() {
+        // Measured layout: input (1,0,0) with these vectors yields (0.1, 0.4, 0.7).
+        let vectors = ColorMatrixVectors(
+            r: SIMD3(0.1, 0.2, 0.3),
+            g: SIMD3(0.4, 0.5, 0.6),
+            b: SIMD3(0.7, 0.8, 0.9)
+        )
+        let out = render(red: 1, green: 0, blue: 0, vectors: vectors)
+        XCTAssertEqual(out.x, 0.1, accuracy: 1e-4)
+        XCTAssertEqual(out.y, 0.4, accuracy: 1e-4)
+        XCTAssertEqual(out.z, 0.7, accuracy: 1e-4)
     }
 
-    func testPremultipliedGainsMatchMatrixVectorProduct() {
+    func testP3ToFGamutPreservesWhiteAndMapsRedToFirstColumn() {
         let m = RGBSpace.conversion(from: .displayP3, to: .fGamut)
-        let gains = SIMD3<Double>(1.2, 1.0, 0.8)
-        let v = ColorMatrix.contributions(m, gains: gains)
-        let rgb = SIMD3<Double>(0.2, 0.3, 0.4)
-        let expected = m * (rgb * gains)
-        let got = v.r * rgb.x + v.g * rgb.y + v.b * rgb.z
-        XCTAssertEqual(got.x, expected.x, accuracy: 1e-12)
-        XCTAssertEqual(got.y, expected.y, accuracy: 1e-12)
-        XCTAssertEqual(got.z, expected.z, accuracy: 1e-12)
+        let vectors = ColorMatrixVectors.contributions(m, gains: SIMD3(1, 1, 1))
+
+        let white = render(red: 1, green: 1, blue: 1, vectors: vectors)
+        XCTAssertEqual(white.x, 1, accuracy: 1e-4)
+        XCTAssertEqual(white.y, 1, accuracy: 1e-4)
+        XCTAssertEqual(white.z, 1, accuracy: 1e-4)
+
+        let red = render(red: 1, green: 0, blue: 0, vectors: vectors)
+        XCTAssertEqual(red.x, m[0, 0], accuracy: 1e-4)
+        XCTAssertEqual(red.y, m[0, 1], accuracy: 1e-4)
+        XCTAssertEqual(red.z, m[0, 2], accuracy: 1e-4)
+    }
+
+    func testInputGainScalesTheSourceChannel() {
+        let m = RGBSpace.conversion(from: .displayP3, to: .fGamut)
+        let vectors = ColorMatrixVectors.contributions(m, gains: SIMD3(2, 1, 1))
+        let red = render(red: 1, green: 0, blue: 0, vectors: vectors)
+        XCTAssertEqual(red.x, m[0, 0] * 2, accuracy: 1e-4)
+        XCTAssertEqual(red.y, m[0, 1] * 2, accuracy: 1e-4)
+        XCTAssertEqual(red.z, m[0, 2] * 2, accuracy: 1e-4)
+    }
+
+    private func render(red: Double, green: Double, blue: Double, vectors: ColorMatrixVectors) -> SIMD3<Float> {
+        let space = CGColorSpace(name: CGColorSpace.linearSRGB)!
+        let context = CIContext(options: [.workingColorSpace: space])
+        let image = CIImage(color: CIColor(
+            red: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue), alpha: 1, colorSpace: space
+        )).cropped(to: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let filtered = image.applyingFilter("CIColorMatrix", parameters: [
+            "inputRVector": vectors.rVector,
+            "inputGVector": vectors.gVector,
+            "inputBVector": vectors.bVector,
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+        ])
+        var pixel = [Float](repeating: 0, count: 4)
+        pixel.withUnsafeMutableBytes { raw in
+            context.render(
+                filtered,
+                toBitmap: raw.baseAddress!,
+                rowBytes: MemoryLayout<Float>.size * 4,
+                bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                format: .RGBAf,
+                colorSpace: space
+            )
+        }
+        return SIMD3(pixel[0], pixel[1], pixel[2])
     }
 }

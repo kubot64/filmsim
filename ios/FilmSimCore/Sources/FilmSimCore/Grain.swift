@@ -29,7 +29,8 @@ public enum Grain {
     }
 
     /// Multiply centered uniform noise by this, then blur with `sigma`, to get std ≈ 1.
-    /// Mirrors scipy.ndimage.gaussian_filter (truncate=4) applied separably.
+    /// Same closed form as `filmsim.grain.unit_noise_gain` (scipy truncate=4, separable).
+    /// The samples themselves stay uniform; Python's `add_grain` draws normal noise.
     public static func unitNoiseGain(sigma: Double) -> Double {
         let stdIn = 1 / 12.0.squareRoot()
         if sigma <= 0 { return 1 / stdIn }

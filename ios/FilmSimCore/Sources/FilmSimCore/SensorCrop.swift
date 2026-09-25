@@ -23,17 +23,6 @@ public enum SensorCrop {
         }
         return CGRect(x: extent.midX - w / 2, y: extent.midY - h / 2, width: w, height: h)
     }
-
-    /// Extra zoom on top of aspect-fill into a 3:2 view, so the visible region
-    /// matches `rect35mmThreeByTwo`. `videoAspect` is width/height of the preview
-    /// stream; it is assumed to cover the full sensor.
-    public static func previewZoom(videoAspectWidthOverHeight videoAspect: Double) -> Double {
-        let viewAspect = 3.0 / 2.0
-        let filledWidthFraction = videoAspect <= viewAspect ? 1.0 : viewAspect / videoAspect
-        let sensor = CGRect(x: 0, y: 0, width: CGFloat(videoAspect), height: 1)
-        let crop = rect35mmThreeByTwo(in: sensor)
-        return filledWidthFraction / Double(crop.width / sensor.width)
-    }
 }
 
 public extension CIImage {

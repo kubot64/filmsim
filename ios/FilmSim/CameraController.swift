@@ -13,7 +13,7 @@ final class CameraController: NSObject, ObservableObject {
     @Published var isReady = false
     @Published var status = "起動中…"
     /// Aspect-fill zoom so the 3:2 preview matches the 35mm crop. 4:3 until the format is known.
-    @Published var previewZoom: CGFloat = 35.0 / 24.0
+    @Published var previewZoom: CGFloat = PreviewFraming.defaultZoom
 
     struct PendingCapture {
         var rawData: Data?
@@ -51,7 +51,7 @@ final class CameraController: NSObject, ObservableObject {
             output.maxPhotoDimensions = dims
             let video = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
             if video.height > 0 {
-                previewZoom = CGFloat(SensorCrop.previewZoom(
+                previewZoom = CGFloat(PreviewFraming.zoom(
                     videoAspectWidthOverHeight: Double(video.width) / Double(video.height)
                 ))
             }
@@ -114,6 +114,25 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
     }
 }
 
+/// Extra zoom on a 3:2 aspect-fill preview so the visible region matches `SensorCrop`.
+enum PreviewFraming {
+    /// 4:3 sensor, used until the active format's aspect is known.
+    static var defaultZoom: CGFloat {
+        CGFloat(SensorCrop.targetEquivalentMM / SensorCrop.wideEquivalentMM)
+    }
+
+    /// `videoAspect` is width/height of the preview stream, assumed to cover the full sensor.
+    static func zoom(videoAspectWidthOverHeight videoAspect: Double) -> Double {
+        let viewAspect = 3.0 / 2.0
+        let filledWidthFraction = videoAspect <= viewAspect ? 1.0 : viewAspect / videoAspect
+        let sensor = CGRect(x: 0, y: 0, width: CGFloat(videoAspect), height: 1)
+        let crop = SensorCrop.rect35mmThreeByTwo(in: sensor)
+        let fraction = Double(crop.width / max(sensor.width, 1))
+        guard fraction > 0 else { return Double(defaultZoom) }
+        return filledWidthFraction / fraction
+    }
+}
+
 /// UIKit bridge for the live preview.
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
@@ -135,7 +154,7 @@ struct CameraPreview: UIViewRepresentable {
     /// shows the same center crop `SensorCrop` applies to the saved image.
     final class PreviewView: UIView {
         let videoPreviewLayer = AVCaptureVideoPreviewLayer()
-        var zoom: CGFloat = 35.0 / 24.0
+        var zoom: CGFloat = PreviewFraming.defaultZoom
 
         override init(frame: CGRect) {
             super.init(frame: frame)

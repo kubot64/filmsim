@@ -58,7 +58,8 @@ public enum LUTInputDetection {
         var lines: [String] = []
         for raw in cubeText.split(whereSeparator: \.isNewline).prefix(200) {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("#") || line.uppercased().hasPrefix("TITLE") { lines.append(line) }
+            // Long lines are cut: a name never needs more, and a huge line would slow every pattern.
+            if line.hasPrefix("#") || line.uppercased().hasPrefix("TITLE") { lines.append(String(line.prefix(500))) }
         }
         return lines
     }

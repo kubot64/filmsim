@@ -41,12 +41,23 @@ final class LUTLibrary: ObservableObject {
             let file = url.lastPathComponent
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            // Check the size before reading, so a huge file cannot use up memory.
+            let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            guard bytes <= CubeLUT.maxFileBytes else {
+                report.lines.append("\(file)：読み込みませんでした。\(CubeLUT.ParseError.tooLarge.message)"); continue
+            }
+            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
                 report.lines.append("\(file)：読めません"); continue
             }
-            guard let lut = try? CubeLUT(text: text) else {
-                report.lines.append("\(file)：3D LUT（.cube）ではありません"); continue
+            let lut: CubeLUT
+            do {
+                lut = try CubeLUT(data: data)
+            } catch let error as CubeLUT.ParseError {
+                report.lines.append("\(file)：読み込みませんでした。\(error.message)"); continue
+            } catch {
+                report.lines.append("\(file)：読めません"); continue
             }
+            let text = String(decoding: data, as: UTF8.self)
             switch LUTInputDetection.detect(fileName: file, cubeText: text) {
             case .unsupported(let reason):
                 report.lines.append("\(file)：読み込みませんでした。\(reason)")

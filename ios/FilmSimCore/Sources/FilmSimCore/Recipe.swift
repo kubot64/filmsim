@@ -3,20 +3,33 @@ import Foundation
 public enum FilmSimulation: String, CaseIterable, Codable, Sendable {
     case provia
     case classicChrome
+    case portra400vc
 
     public var displayName: String {
         switch self {
         case .provia: return "Provia"
         case .classicChrome: return "Classic Chrome"
+        case .portra400vc: return "Portra 400VC"
         }
     }
 
-    /// Resource name (without ".cube") of the official LUT in the app bundle.
-    /// Files come from the GFX ETERNA 55 LUT package via scripts/fetch_luts.sh.
+    /// Resource name (without ".cube") of the LUT in the app bundle. The Fujifilm files come
+    /// from the GFX ETERNA 55 LUT package via scripts/fetch_luts.sh; Portra 400VC is baked from
+    /// Kodak's datasheet by research/scripts/bake_negative.py and committed.
     public var lutFileName: String {
         switch self {
         case .provia: return "FLog2_to_PROVIA_65grid_V.1.00"
         case .classicChrome: return "FLog2_to_CLASSIC-CHROME_65grid_V.1.00"
+        case .portra400vc: return "Portra400VC_33grid"
+        }
+    }
+
+    /// The X-series highlight shoulder (#16) pulls Fujifilm's GFX LUTs towards X-series JPEGs.
+    /// Other looks have their own highlights in the LUT. Mirrors pipeline.FUJIFILM_FILM_SIMS.
+    public var usesXSeriesShoulder: Bool {
+        switch self {
+        case .provia, .classicChrome: return true
+        case .portra400vc: return false
         }
     }
 }

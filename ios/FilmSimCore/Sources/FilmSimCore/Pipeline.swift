@@ -61,7 +61,9 @@ public struct Pipeline {
         cube.cubeData = lut.rgbaData
         guard var out = cube.outputImage else { return nil }
 
-        out = HighlightShoulder.apply(to: out, kernel: kernels.shoulder)
+        if recipe.filmSimulation.usesXSeriesShoulder {
+            out = HighlightShoulder.apply(to: out, kernel: kernels.shoulder)
+        }
         if WarmHue.applies(to: recipe.filmSimulation) {
             out = WarmHue.apply(to: out, kernel: kernels.warmHue)
         }

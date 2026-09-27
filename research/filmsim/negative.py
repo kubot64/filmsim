@@ -93,16 +93,33 @@ class PrintSettings:
     """How the negative is turned into a positive. Not on the datasheet; set by eye."""
 
     contrast: float = 1.35       # print gamma on top of the negative, in log units
-    saturation: float = 1.0      # spread of the channels around their mean, in log units
+    saturation: float = 1.0      # spread of the channels around their luminance, in log units
+    shadow_stops: float = 7.0    # how far below mid-grey the film base (D-min) prints as black
     black: float = 0.012         # display-linear floor: paper D-max or a scanner's black point
     white: float = 1.0           # display-linear ceiling of the print curve
 
 
-# Tuned against reference scans of Portra 400VC (sky, red balloons, green upholstery,
-# skin, a red gingham cloth). On the ColorChecker this gives about 1.2x the chroma of the
-# true colours, reds 1 to 4° towards orange, greens 5° towards yellow, and blue sky on hue.
-# Neutrals stay neutral.
-PORTRA_400VC = PrintSettings(contrast=1.5, saturation=1.7)
+# Tuned against reference scans of Portra 400VC (deep blue sky, red balloons, lime-green
+# upholstery, skin, a red gingham cloth). On the ColorChecker this gives about 1.2x the
+# chroma of the true colours, reds 2 to 5° towards orange, greens 3 to 6° towards yellow,
+# and blue sky on hue. Neutrals stay neutral (C* < 1 from white to black).
+PORTRA_400VC = PrintSettings(contrast=1.5, saturation=1.7, black=0.005)
+
+
+def tone(film: ModuleType, log_h: np.ndarray) -> np.ndarray:
+    """Log exposure to scene log units through the film's tone, the same curve for every channel.
+
+    The curve is the mean of the three characteristic curves, each over its own gamma: the toe
+    that compresses the shadows and the shoulder stay, while the orange mask and B's steeper
+    curve drop out, as a scanner's per-channel levels do. Giving each channel its own curve
+    tinted neutrals: the three toes start at different exposures, and the ColorChecker's
+    black came out purple.
+    """
+    log_h = np.asarray(log_h, dtype=np.float64)
+    gamma = straight_line_gamma(film)
+    ref = negative_density(film, np.full(3, film.LOG_H_REF))
+    per_channel = (negative_density(film, np.stack([log_h] * 3, axis=-1)) - ref) / gamma
+    return per_channel.mean(axis=-1)
 
 
 def render(linear: np.ndarray, film: ModuleType, settings: PrintSettings, m: np.ndarray | None = None) -> np.ndarray:
@@ -111,15 +128,18 @@ def render(linear: np.ndarray, film: ModuleType, settings: PrintSettings, m: np.
         m = layer_matrix(film)
     exposure = np.clip(np.asarray(linear, dtype=np.float64) @ m.T, 1e-6, None)
     log_h = np.log10(exposure / MIDDLE_GREY) + film.LOG_H_REF
-    density = negative_density(film, log_h)
-    ref = negative_density(film, np.full(3, film.LOG_H_REF))
+    x = tone(film, log_h)
 
-    # Density above mid-grey, divided by each layer's gamma: back to scene log units, with the
-    # toe and shoulder of each curve kept. Dividing out the gammas balances the orange mask
-    # and B's steeper curve, as printing filtration does.
-    x = (density - ref) / straight_line_gamma(film)
-    mean = x.mean(axis=-1, keepdims=True)
-    x = mean + settings.saturation * (x - mean)
+    # Split into luminance and the channels' offsets from it, in log units. Saturation scales
+    # the offsets, so a saturated colour gets deeper rather than brighter (spreading around
+    # the plain mean lifted greens by 8 L*). Below mid-grey the luminance is stretched so the
+    # film base (D-min) prints `shadow_stops` down, where a scanner puts its black point;
+    # stretching the offsets too doubled the chroma of dark skin.
+    luma = x @ np.array([0.2126, 0.7152, 0.0722])
+    film_base = float(tone(film, -10.0))
+    stretch = settings.shadow_stops * np.log10(2) / -film_base
+    stretched = np.where(luma < 0, luma * stretch, luma)
+    x = stretched[..., None] + settings.saturation * (x - luma[..., None])
 
     # Print curve: a smooth S in log exposure that keeps mid-grey at 18%.
     e = MIDDLE_GREY * 10.0 ** x

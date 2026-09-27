@@ -9,6 +9,8 @@ struct DevelopView: View {
     @State private var preview: UIImage?
     /// Shared with the camera screen, which develops new shots with it (#8).
     @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
+    /// Shared with the camera and settings screens. The DNG holds the whole sensor, so any choice works.
+    @AppStorage(FocalLength.storageKey) private var focalLength = FocalLength.default
     @State private var message: String?
     /// One preview develop runs at a time. A newer recipe only replaces the single waiting request.
     @State private var renderGeneration = 0
@@ -33,6 +35,9 @@ struct DevelopView: View {
                 Form {
                     Picker("Film simulation", selection: recipeBinding.filmSimulation) {
                         ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
+                    }
+                    Picker("Focal length", selection: $focalLength) {
+                        ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
                     }
                     slider("Exposure", value: recipeBinding.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
                     slider("WB R", value: recipeBinding.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
@@ -63,6 +68,7 @@ struct DevelopView: View {
             }
             .onChange(of: picked) { _, item in Task { await load(item) } }
             .onChange(of: storedRecipe) { _, _ in scheduleRender() }
+            .onChange(of: focalLength) { _, _ in scheduleRender() }
         }
     }
 
@@ -106,10 +112,13 @@ struct DevelopView: View {
         while !Task.isCancelled {
             guard let rawData else { return }
             let current = recipe
+            let currentFocal = focalLength
             let epoch = renderGeneration
-            let cg = await Developer.shared.displayCGImage(rawData: rawData, scaleFactor: 0.25, recipe: current)
+            let cg = await Developer.shared.displayCGImage(
+                rawData: rawData, scaleFactor: 0.25, recipe: current, focalLength: currentFocal
+            )
             if Task.isCancelled { return }
-            if renderGeneration != epoch || recipe != current {
+            if renderGeneration != epoch || recipe != current || focalLength != currentFocal {
                 guard renderGeneration != epoch, self.rawData != nil else { return }
                 continue
             }
@@ -126,7 +135,9 @@ struct DevelopView: View {
 
     private func save() async {
         guard let rawData else { return }
-        let result = await Developer.shared.developAndSave(rawData: rawData, saveDNG: false, recipe: recipe)
+        let result = await Developer.shared.developAndSave(
+            rawData: rawData, saveDNG: false, recipe: recipe, focalLength: focalLength
+        )
         message = result.message
     }
 }

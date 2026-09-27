@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage("saveDNG") private var saveDNG = true
     @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
     @AppStorage(ExposureCompensation.storageKey) private var exposureBias = 0.0
+    @AppStorage(FocalLength.storageKey) private var focalLength = FocalLength.default
 
     var body: some View {
         NavigationStack {
@@ -25,6 +26,9 @@ struct SettingsView: View {
                 Section {
                     Picker("フィルムシミュレーション", selection: filmSimulation) {
                         ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
+                    }
+                    Picker("画角", selection: $focalLength) {
+                        ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
                     }
                     Stepper(
                         onIncrement: { stepExposureBias(by: 1) },

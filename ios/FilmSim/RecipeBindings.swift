@@ -11,15 +11,3 @@ extension Recipe {
         )
     }
 }
-
-/// Film-simulation picker shared by Camera, Develop, and Settings.
-struct FilmSimulationPicker: View {
-    @Binding var selection: FilmSimulation
-    var title: String = "フィルムシミュレーション"
-
-    var body: some View {
-        Picker(title, selection: $selection) {
-            ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
-        }
-    }
-}

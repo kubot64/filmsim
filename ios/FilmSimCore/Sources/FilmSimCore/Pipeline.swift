@@ -35,16 +35,20 @@ public struct Pipeline {
 
     public let kernels: Kernels
     public let luts: [FilmSimulation: CubeLUT]
+    /// LUTs the user imported, by `ImportedLUT` name.
+    public let importedLUTs: [String: CubeLUT]
 
-    public init(kernels: Kernels, luts: [FilmSimulation: CubeLUT]) {
+    public init(kernels: Kernels, luts: [FilmSimulation: CubeLUT], importedLUTs: [String: CubeLUT] = [:]) {
         self.kernels = kernels
         self.luts = luts
+        self.importedLUTs = importedLUTs
     }
 
     /// `grainPixelScale` multiplies the grain sigma. Pass the CIRAWFilter scale used for
     /// a preview so grain stays the same size relative to the frame.
     public func render(_ linear: CIImage, recipe: Recipe, grainPixelScale: Double = 1) -> CIImage? {
-        guard let lut = luts[recipe.filmSimulation] else { return nil }
+        guard let look = ResolvedLook.resolve(recipe, builtIn: luts, imported: importedLUTs) else { return nil }
+        let lut = look.lut
 
         let gains = recipe.wbGains * pow(2, recipe.exposureEV)
         let m = RGBSpace.conversion(from: .displayP3, to: .fGamut)
@@ -61,10 +65,10 @@ public struct Pipeline {
         cube.cubeData = lut.rgbaData
         guard var out = cube.outputImage else { return nil }
 
-        if recipe.filmSimulation.usesXSeriesShoulder {
+        if look.xSeriesShoulder {
             out = HighlightShoulder.apply(to: out, kernel: kernels.shoulder)
         }
-        if recipe.filmSimulation.usesWarmHue {
+        if look.warmHue {
             out = WarmHue.apply(to: out, kernel: kernels.warmHue)
         }
         out = ToneCurve.apply(to: out, highlight: recipe.highlight, shadow: recipe.shadow, kernel: kernels.tone)

@@ -51,6 +51,10 @@ final class Developer {
     /// Bundle resource existed but `CubeLUT(contentsOf:)` failed; value is the load error text.
     private var unreadableLUTs: [FilmSimulation: String] = [:]
     private var lutLoads: [FilmSimulation: Task<LUTLoadOutcome, Never>] = [:]
+    /// Imported LUTs read so far, by `ImportedLUT` name. Emptied by `reloadImportedLUTs`.
+    private var importedLUTs: [String: CubeLUT] = [:]
+    /// Bumped by `reloadImportedLUTs`, so a read that started before it is not cached.
+    private var importedGeneration = 0
     /// Set when kernels are missing, or when a requested LUT is missing/unreadable.
     /// Rendering other loaded simulations still works.
     private(set) var setupError: String?
@@ -69,9 +73,16 @@ final class Developer {
         }
     }
 
+    /// Called by `LUTLibrary` after an import or a delete. The next render reads the file again,
+    /// since an import can replace a file under the same name.
+    func reloadImportedLUTs() {
+        importedLUTs = [:]
+        importedGeneration += 1
+    }
+
     /// Both screens pass the stored last-used recipe (`Recipe.storageKey`, #8).
     func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe, focalLength: FocalLength) async -> CGImage? {
-        guard let pipeline = await pipeline(for: recipe.filmSimulation) else { return nil }
+        guard let pipeline = await pipeline(for: recipe) else { return nil }
         let box = RenderBox(
             pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
             rawData: rawData, scaleFactor: scaleFactor
@@ -82,7 +93,7 @@ final class Developer {
     func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveResult {
         guard await authorizeAdd() else { return .permissionDenied }
         let heic: Data?
-        if let pipeline = await pipeline(for: recipe.filmSimulation) {
+        if let pipeline = await pipeline(for: recipe) {
             let box = RenderBox(
                 pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
                 rawData: rawData, scaleFactor: 1
@@ -116,16 +127,28 @@ final class Developer {
         return saveDNG ? .savedHEICAndDNG : .savedHEIC
     }
 
-    /// Kernels plus the LUT for `simulation`. Loads that LUT off the main actor on first use;
-    /// a missing or corrupt file only disables that simulation.
-    private func pipeline(for simulation: FilmSimulation) async -> Pipeline? {
+    /// Kernels plus the LUT `recipe` renders with (`ResolvedLook`). An imported LUT is used when
+    /// its file still reads; otherwise the built-in simulation is, as `ResolvedLook` falls back.
+    /// LUTs load off the main actor on first use; a missing or corrupt built-in file only
+    /// disables that simulation.
+    private func pipeline(for recipe: Recipe) async -> Pipeline? {
         guard let kernels else { return nil }
-        if let lut = await loadLUT(simulation) {
-            var available = luts
-            available[simulation] = lut
-            return Pipeline(kernels: kernels, luts: available)
+        if let name = recipe.importedLUT, let lut = await loadImportedLUT(name) {
+            return Pipeline(kernels: kernels, luts: [:], importedLUTs: [name: lut])
         }
-        return nil
+        guard let lut = await loadLUT(recipe.filmSimulation) else { return nil }
+        return Pipeline(kernels: kernels, luts: [recipe.filmSimulation: lut])
+    }
+
+    /// Nil when the import is gone or no longer parses; the recipe then renders with its
+    /// built-in simulation, like before the import.
+    private func loadImportedLUT(_ name: String) async -> CubeLUT? {
+        if let lut = importedLUTs[name] { return lut }
+        guard let url = LUTLibrary.shared.fileURL(forImported: name) else { return nil }
+        let generation = importedGeneration
+        let lut = await Task.detached(priority: .userInitiated) { try? CubeLUT(contentsOf: url) }.value
+        if let lut, generation == importedGeneration { importedLUTs[name] = lut }
+        return lut
     }
 
     private func loadLUT(_ simulation: FilmSimulation) async -> CubeLUT? {

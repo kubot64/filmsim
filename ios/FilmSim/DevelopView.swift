@@ -30,7 +30,7 @@ struct DevelopView: View {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
                 }
                 Form {
-                    FilmSimulationPicker(selection: recipe.filmSimulation, title: "Film simulation")
+                    LookPicker(title: "Look", recipe: recipe)
                     Picker("Focal length", selection: $focalLength) {
                         ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
                     }

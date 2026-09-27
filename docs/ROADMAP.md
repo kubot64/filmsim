@@ -26,3 +26,7 @@
      - 撮影の手応え：撮った瞬間に画面を一瞬暗くする、最後に撮った写真のサムネイル、現像中の表示。シャッター音は `AVCapturePhotoOutput` が自動で鳴らすので足さない。iOS 18 の `isShutterSoundSuppressionEnabled` で消せるのは許される地域の端末だけで、日本で売られた iPhone では消せない
      - 構図の補助：グリッド、水平計
      - 音量ボタンでシャッター（`AVCaptureEventInteraction`）
+7. **富士以外のルック**（DESIGN.md「富士以外のルック」）
+   - Leica Standard：DNG と撮って出し JPEG のペアを集め、`scripts/fit_look.py` で LUT を当てはめる。当てはめの道具はできた。ペアはまだない
+   - Portra 400VC：Kodak の技術資料から特性曲線と色素濃度を読み取り、LUT に焼く
+   - アプリ側：LUT が揃ったら、フィルムシミュレーションの一覧に足し、富士専用の補正を富士の LUT にだけ掛ける

@@ -34,19 +34,21 @@ final class LUTLibrary: ObservableObject {
         }
     }
 
-    /// Checks each file parses as a 3D LUT before copying it in. A file with the same name
-    /// replaces the earlier import. Returns the names that were added.
+    /// Checks each file parses as a 3D LUT before copying it in. A LUT made for another log
+    /// (`input`) is re-baked to take F-Log2 codes first, so the pipeline never needs to know.
+    /// A file with the same name replaces the earlier import. Returns the names that were added.
     @discardableResult
-    func importFiles(_ urls: [URL]) throws -> [String] {
+    func importFiles(_ urls: [URL], input: LUTInput = .fLog2) throws -> [String] {
         var added: [String] = []
         for url in urls {
             let file = url.lastPathComponent
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { throw ImportError.unreadable(file) }
-            guard (try? CubeLUT(text: text)) != nil else { throw ImportError.notA3DLUT(file) }
+            guard let lut = try? CubeLUT(text: text) else { throw ImportError.notA3DLUT(file) }
             let name = ImportedLUT.name(forFileName: file)
-            try text.write(to: fileURL(for: name), atomically: true, encoding: .utf8)
+            let stored = input == .fLog2 ? text : lut.convertedToFLog2(from: input).cubeText
+            try stored.write(to: fileURL(for: name), atomically: true, encoding: .utf8)
             added.append(name)
         }
         refresh()

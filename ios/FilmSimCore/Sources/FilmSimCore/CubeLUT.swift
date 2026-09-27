@@ -8,6 +8,14 @@ public struct CubeLUT: Sendable {
 
     public enum ParseError: Error { case missingSize, badRowCount(expected: Int, got: Int), unsupported1D }
 
+    /// From RGBA floats already in CIColorCube order (red fastest). Used by `convertedToFLog2`.
+    init(title: String, size: Int, floats: [Float]) {
+        precondition(floats.count == size * size * size * 4)
+        self.title = title
+        self.size = size
+        self.rgbaData = floats.withUnsafeBufferPointer { Data(buffer: $0) }
+    }
+
     public init(contentsOf url: URL) throws {
         try self.init(text: String(contentsOf: url, encoding: .utf8))
     }

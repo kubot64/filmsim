@@ -22,6 +22,7 @@ struct SettingsView: View {
     @ObservedObject private var library = LUTLibrary.shared
     @State private var isImporting = false
     @State private var importMessage: String?
+    @State private var importInput = LUTInput.fLog2
     @State private var rawSupport: [CameraRawSupport]?
     @State private var isSurveying = false
 
@@ -121,6 +122,9 @@ struct SettingsView: View {
     /// Import .cube files from the Files app; swipe to delete. They join the look pickers.
     private var importSection: some View {
         Section {
+            Picker("LUT の入力", selection: $importInput) {
+                ForEach(LUTInput.allCases, id: \.self) { Text($0.displayName) }
+            }
             Button("LUT を読み込む…") { isImporting = true }
             ForEach(library.names, id: \.self) { name in
                 Text(name)
@@ -136,13 +140,13 @@ struct SettingsView: View {
         } header: {
             Text("LUT の読み込み")
         } footer: {
-            Text("F-Log2（F-Gamut）を入力にする 3D LUT（.cube）を読み込み、フィルムシミュレーションの一覧に足す。富士フイルムの公式 F-Log2 用 LUT はそのまま使え、ファイル名が FLog2_to_ で始まるものには標準の富士の色と同じ補正を掛ける。")
+            Text("3D LUT（.cube）を読み込み、フィルムシミュレーションの一覧に足す。先に「LUT の入力」で、その LUT が何用に作られたかを選ぶ。S-Log3 用は読み込むときに F-Log2 用に作り直す。富士フイルムの公式 F-Log2 用 LUT はそのまま使え、ファイル名が FLog2_to_ で始まるものには標準の富士の色と同じ補正を掛ける。")
         }
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [LUTLibrary.cubeType], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls):
                 do {
-                    let added = try library.importFiles(urls)
+                    let added = try library.importFiles(urls, input: importInput)
                     importMessage = "\(added.count) 個の LUT を読み込みました"
                 } catch {
                     importMessage = error.localizedDescription

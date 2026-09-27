@@ -9,6 +9,8 @@ import SwiftUI
 struct CameraView: View {
     @StateObject private var camera = CameraController()
     @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
+    /// Observed so the menu label updates when an imported LUT is deleted.
+    @ObservedObject private var library = LUTLibrary.shared
 
     private var recipe: Recipe { Recipe.decoded(from: storedRecipe) }
 
@@ -74,11 +76,9 @@ struct CameraView: View {
 
     private var filmSimulationMenu: some View {
         Menu {
-            Picker("Film simulation", selection: filmSimulation) {
-                ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
-            }
+            LookPicker(title: "Look", selection: look)
         } label: {
-            Label(recipe.filmSimulation.displayName, systemImage: "camera.filters")
+            Label(recipe.effectiveLook(importedNames: library.names).displayName, systemImage: "camera.filters")
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -110,12 +110,12 @@ struct CameraView: View {
         .disabled(!camera.isReady)
     }
 
-    private var filmSimulation: Binding<FilmSimulation> {
+    private var look: Binding<Look> {
         Binding(
-            get: { recipe.filmSimulation },
+            get: { recipe.effectiveLook(importedNames: library.names) },
             set: { newValue in
                 var r = recipe
-                r.filmSimulation = newValue
+                r.look = newValue
                 storedRecipe = r.encoded
             }
         )

@@ -19,6 +19,9 @@ struct SettingsView: View {
     @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
     @AppStorage(ExposureCompensation.storageKey) private var exposureBias = 0.0
     @AppStorage(FocalLength.storageKey) private var focalLength = FocalLength.default
+    @ObservedObject private var library = LUTLibrary.shared
+    @State private var isImporting = false
+    @State private var importMessage: String?
     @State private var rawSupport: [CameraRawSupport]?
     @State private var isSurveying = false
 
@@ -26,9 +29,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("フィルムシミュレーション", selection: filmSimulation) {
-                        ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
-                    }
+                    LookPicker(title: "フィルムシミュレーション", selection: look)
                     Picker("画角", selection: $focalLength) {
                         ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
                     }
@@ -47,6 +48,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("カメラ画面と同じ設定。アプリを終了しても次に起動したときに残る。")
                 }
+                importSection
                 Section("保存") {
                     Toggle("DNG も写真ライブラリに保存", isOn: $saveDNG)
                     Text("開発中はオン。パイプラインが安定したらオフにする。")
@@ -105,15 +107,50 @@ struct SettingsView: View {
         ))
     }
 
-    private var filmSimulation: Binding<FilmSimulation> {
+    private var look: Binding<Look> {
         Binding(
-            get: { Recipe.decoded(from: storedRecipe).filmSimulation },
+            get: { Recipe.decoded(from: storedRecipe).effectiveLook(importedNames: library.names) },
             set: { newValue in
                 var r = Recipe.decoded(from: storedRecipe)
-                r.filmSimulation = newValue
+                r.look = newValue
                 storedRecipe = r.encoded
             }
         )
+    }
+
+    /// Import .cube files from the Files app; swipe to delete. They join the look pickers.
+    private var importSection: some View {
+        Section {
+            Button("LUT を読み込む…") { isImporting = true }
+            ForEach(library.names, id: \.self) { name in
+                Text(name)
+            }
+            .onDelete { offsets in
+                // Take the names first: each delete refreshes the list and shifts the offsets.
+                let targets = offsets.map { library.names[$0] }
+                for name in targets { library.delete(name) }
+            }
+            if let importMessage {
+                Text(importMessage).font(.footnote).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("LUT の読み込み")
+        } footer: {
+            Text("F-Log2（F-Gamut）を入力にする 3D LUT（.cube）を読み込み、フィルムシミュレーションの一覧に足す。富士フイルムの公式 F-Log2 用 LUT はそのまま使え、ファイル名が FLog2_to_ で始まるものには標準の富士の色と同じ補正を掛ける。")
+        }
+        .fileImporter(isPresented: $isImporting, allowedContentTypes: [LUTLibrary.cubeType], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls):
+                do {
+                    let added = try library.importFiles(urls)
+                    importMessage = "\(added.count) 個の LUT を読み込みました"
+                } catch {
+                    importMessage = error.localizedDescription
+                }
+            case .failure(let error):
+                importMessage = error.localizedDescription
+            }
+        }
     }
 }
 

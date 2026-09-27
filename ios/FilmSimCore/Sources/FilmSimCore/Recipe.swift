@@ -5,11 +5,13 @@ public enum FilmSimulation: String, CaseIterable, Codable, Sendable {
     case classicChrome
     case portra400vc
 
+    /// Generic names, not the film or simulation the look is based on: those are trademarks
+    /// (Fujifilm, Kodak). Case names and raw values keep the source so stored recipes still decode.
     public var displayName: String {
         switch self {
-        case .provia: return "Provia"
-        case .classicChrome: return "Classic Chrome"
-        case .portra400vc: return "Portra 400VC"
+        case .provia: return "ナチュラル"
+        case .classicChrome: return "ネガフィルム"
+        case .portra400vc: return "アメリカ"
         }
     }
 
@@ -40,6 +42,9 @@ public enum GrainSize: String, CaseIterable, Codable, Sendable { case small, lar
 /// Mirrors `filmsim.pipeline.Recipe` in research/. Keep the two in sync.
 public struct Recipe: Codable, Equatable, Sendable {
     public var filmSimulation: FilmSimulation = .provia
+    /// Name of an imported LUT (`ImportedLUT`) to use instead of `filmSimulation`. Nil for the
+    /// built-in looks. When that LUT has been deleted, rendering falls back to `filmSimulation`.
+    public var importedLUT: String?
     public var exposureEV: Double = 0
     public var wbShiftR: Double = 0   // -9...+9
     public var wbShiftB: Double = 0   // -9...+9

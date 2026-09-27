@@ -42,13 +42,18 @@ final class Developer {
                     missing.append(sim.displayName)
                 }
             }
-            pipeline = Pipeline(kernels: kernels, luts: luts)
+            pipeline = Pipeline(kernels: kernels, luts: luts, importedLUTs: LUTLibrary.shared.loadAll())
             if !missing.isEmpty {
                 setupError = "LUT がありません: \(missing.joined(separator: ", "))"
             }
         } catch {
             setupError = "パイプラインを初期化できません: \(error.localizedDescription)"
         }
+    }
+
+    /// Called by `LUTLibrary` after an import or a delete.
+    func reloadImportedLUTs() {
+        pipeline?.importedLUTs = LUTLibrary.shared.loadAll()
     }
 
     /// Both screens pass the stored last-used recipe (`Recipe.storageKey`, #8).

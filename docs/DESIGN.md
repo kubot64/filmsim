@@ -57,7 +57,7 @@ Provia では、ハイライトの肩の後ろで、赤から黄の色相を赤�
 
 ## 富士以外のルック
 
-Leica Standard と Kodak Portra 400VC を足す（まだ LUT はない）。どちらも富士の LUT と同じ場所に入る「F-Log2 のコード値 → 表示のコード値」の 3D LUT として作る。入力の側（線形 → F-Log2）は変えないので、アプリのパイプラインはそのまま使え、LUT を差し替えるだけで済む。
+Leica Standard と Kodak Portra 400VC を足す。Portra 400VC の LUT は焼いた。Leica はまだ。どちらも富士の LUT と同じ場所に入る「F-Log2 のコード値 → 表示のコード値」の 3D LUT として作る。入力の側（線形 → F-Log2）は変えないので、アプリのパイプラインはそのまま使え、LUT を差し替えるだけで済む。
 
 - **Leica Standard**：公式の LUT はないが、DNG と撮って出し JPEG のペアはある。ペアから LUT を最小二乗で当てはめる（`research/filmsim/lutfit.py`、`scripts/fit_look.py`）。写真に出てこない色域は、近くで当てはめた補正をなめらかに延ばして埋める。当てはめに使わなかった組との ΔE で検証する
 - **Portra 400VC**：ネガフィルムなので RAW と JPEG のペアがない。Kodak の技術資料（特性曲線と色素の分光濃度）で骨格を作り、作例と見比べて寄せる。#31 のコダクロームと同じやり方

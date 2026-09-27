@@ -18,10 +18,9 @@ from types import ModuleType
 import colour
 import numpy as np
 
-from .anchor import MIDDLE_GREY
 from .cube import CubeLUT
 from .flog2 import FLOG2
-from .gamut import BT2020, BT709_LUMA, RGBSpace
+from .gamut import BT2020, BT709_LUMA, MIDDLE_GREY, RGBSpace
 
 # Layer order matches the output channels: the cyan-forming layer controls red, and so on.
 LAYERS = ("cyan_forming", "magenta_forming", "yellow_forming")

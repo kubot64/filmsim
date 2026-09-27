@@ -67,7 +67,6 @@ final class CameraController: NSObject, ObservableObject {
             ) { [weak self] _ in
                 Task { @MainActor in self?.resumeContinuousFocusAndExposure() }
             }
-            output.maxPhotoQualityPrioritization = .quality
             setFocalLength(FocalLength.stored())
             applyStoredExposureBias()
             reportBayerStatus(maxPhotoSize: info.maxPhotoSize, dimensionList: info.dimensionList)

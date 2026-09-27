@@ -46,11 +46,20 @@ final class Developer {
     ])
     private var kernels: Pipeline.Kernels?
     private var luts: [FilmSimulation: CubeLUT] = [:]
+    /// Bundle resource was not found.
     private var missingLUTs: Set<FilmSimulation> = []
-    private var lutLoads: [FilmSimulation: Task<CubeLUT?, Never>] = [:]
-    /// Set when kernels are missing, or when a requested LUT is missing. Rendering other
-    /// loaded simulations still works.
+    /// Bundle resource existed but `CubeLUT(contentsOf:)` failed; value is the load error text.
+    private var unreadableLUTs: [FilmSimulation: String] = [:]
+    private var lutLoads: [FilmSimulation: Task<LUTLoadOutcome, Never>] = [:]
+    /// Set when kernels are missing, or when a requested LUT is missing/unreadable.
+    /// Rendering other loaded simulations still works.
     private(set) var setupError: String?
+
+    private enum LUTLoadOutcome {
+        case loaded(CubeLUT)
+        case missing
+        case unreadable(String)
+    }
 
     private init() {
         do {
@@ -121,42 +130,52 @@ final class Developer {
 
     private func loadLUT(_ simulation: FilmSimulation) async -> CubeLUT? {
         if let lut = luts[simulation] { return lut }
-        if missingLUTs.contains(simulation) {
+        if missingLUTs.contains(simulation) || unreadableLUTs[simulation] != nil {
             refreshSetupError()
             return nil
         }
-        let task = lutLoads[simulation] ?? Task.detached(priority: .userInitiated) { () -> CubeLUT? in
+        let task = lutLoads[simulation] ?? Task.detached(priority: .userInitiated) { () -> LUTLoadOutcome in
             guard let url = Bundle.main.url(forResource: simulation.lutFileName, withExtension: "cube") else {
-                return nil
+                return .missing
             }
             do {
-                return try CubeLUT(contentsOf: url)
+                return .loaded(try CubeLUT(contentsOf: url))
             } catch {
-                return nil
+                return .unreadable(error.localizedDescription)
             }
         }
         lutLoads[simulation] = task
-        let lut = await task.value
+        let outcome = await task.value
         lutLoads[simulation] = nil
-        if let lut {
+        switch outcome {
+        case .loaded(let lut):
             luts[simulation] = lut
-        } else {
+            return lut
+        case .missing:
             missingLUTs.insert(simulation)
             refreshSetupError()
+            return nil
+        case .unreadable(let message):
+            unreadableLUTs[simulation] = message
+            refreshSetupError()
+            return nil
         }
-        return lut
     }
 
+    /// Called only after a LUT load was attempted (`pipeline(for:)` already requires kernels).
     private func refreshSetupError() {
-        guard !missingLUTs.isEmpty else { return }
-        let names = FilmSimulation.allCases.filter { missingLUTs.contains($0) }.map(\.displayName)
-        let lutMessage = "LUT がありません: \(names.joined(separator: ", "))"
-        if kernels == nil {
-            // Keep the kernel error if kernels never loaded; otherwise report missing LUTs.
-            if setupError == nil { setupError = lutMessage }
-        } else {
-            setupError = lutMessage
+        var parts: [String] = []
+        let missingNames = FilmSimulation.allCases.filter { missingLUTs.contains($0) }.map(\.displayName)
+        if !missingNames.isEmpty {
+            parts.append("LUT がありません: \(missingNames.joined(separator: ", "))")
         }
+        for sim in FilmSimulation.allCases {
+            if let detail = unreadableLUTs[sim] {
+                parts.append("\(sim.displayName) の LUT を読めません: \(detail)")
+            }
+        }
+        guard !parts.isEmpty else { return }
+        setupError = parts.joined(separator: "。")
     }
 
     private func authorizeAdd() async -> Bool {

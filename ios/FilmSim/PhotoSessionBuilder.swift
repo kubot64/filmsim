@@ -58,6 +58,7 @@ enum PhotoSessionBuilder {
                 sensorAspect = Double(video.width) / Double(video.height)
             }
         }
+        output.maxPhotoQualityPrioritization = .quality
         session.commitConfiguration()
         return .success(Configured(
             maxPhotoSize: maxPhotoSize,

@@ -13,11 +13,9 @@ public enum WarmHue {
     public static let center = 140.0
     public static let width = 80.0
 
-    public static func applies(to simulation: FilmSimulation) -> Bool { simulation.usesWarmHue }
-
-    private static let kr = HighlightShoulder.luma.x
-    private static let kb = HighlightShoulder.luma.z
-    private static let kg = HighlightShoulder.luma.y
+    private static let kr = BT709.luma.x
+    private static let kg = BT709.luma.y
+    private static let kb = BT709.luma.z
     private static let cbScale = 2 * (1 - kb)
     private static let crScale = 2 * (1 - kr)
 

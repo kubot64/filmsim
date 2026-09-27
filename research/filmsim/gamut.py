@@ -37,6 +37,9 @@ D65 = (0.31270, 0.32900)
 # CIE Y of linear BT.709 / sRGB. Shared by tone, hue, grain, and negative.
 BT709_LUMA = (0.2126, 0.7152, 0.0722)
 
+# Scene-linear middle grey (18%). Shared by the exposure anchor and negative model.
+MIDDLE_GREY = 0.18
+
 F_GAMUT = RGBSpace("F-Gamut", (0.708, 0.292), (0.170, 0.797), (0.131, 0.046), D65)
 BT2020 = RGBSpace("BT.2020", (0.708, 0.292), (0.170, 0.797), (0.131, 0.046), D65)
 BT709 = RGBSpace("BT.709", (0.640, 0.330), (0.300, 0.600), (0.150, 0.060), D65)

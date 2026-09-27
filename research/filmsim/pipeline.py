@@ -11,18 +11,8 @@ from .flog2 import FLOG2
 from .gamut import F_GAMUT, RGBSpace, apply_matrix, conversion_matrix
 from .grain import add_grain
 from .hue import x_series_warm_hue
-from .looks import FUJIFILM_FILM_SIMS, WARM_HUE_FILM_SIMS, film_sim_key
+from .looks import FUJIFILM_FILM_SIMS, WARM_HUE_FILM_SIMS
 from .tone import tone_curve, x_series_shoulder
-
-# Re-export so callers that imported these from pipeline keep working.
-__all__ = [
-    "FUJIFILM_FILM_SIMS",
-    "WARM_HUE_FILM_SIMS",
-    "Recipe",
-    "film_sim_key",
-    "render",
-    "wb_shift_gains",
-]
 
 
 @dataclass

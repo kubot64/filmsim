@@ -1,6 +1,11 @@
 import Foundation
 import simd
 
+/// CIE Y of linear BT.709 / sRGB. Shared by the highlight shoulder, warm hue, and grain.
+public enum BT709 {
+    public static let luma: SIMD3<Double> = [0.2126, 0.7152, 0.0722]
+}
+
 /// D65 RGB spaces used by the pipeline. F-Gamut == BT.2020 primaries.
 public struct RGBSpace: Sendable {
     public let name: String

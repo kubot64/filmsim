@@ -190,7 +190,7 @@ final class MetalKernelTests: XCTestCase {
             for r in [0.1, 0.25] {
                 let cb = r * cos(t), cr = r * sin(t), y = 0.5
                 let red = y + 1.5748 * cr, blue = y + 1.8556 * cb
-                let green = (y - HighlightShoulder.luma.x * red - HighlightShoulder.luma.z * blue) / HighlightShoulder.luma.y
+                let green = (y - BT709.luma.x * red - BT709.luma.z * blue) / BT709.luma.y
                 colours.append(SIMD3(red, green, blue).clamped(lowerBound: .zero, upperBound: SIMD3(repeating: 1)))
             }
         }
@@ -220,7 +220,7 @@ final class MetalKernelTests: XCTestCase {
             let args: [Any] = [input, noiseImage, NSNumber(value: Float(amp))]
             let out = render(k.apply(extent: input.extent, arguments: args)!)
             for (rgb, got) in zip(colours, out) {
-                let l = (rgb * HighlightShoulder.luma).sum()
+                let l = (rgb * BT709.luma).sum()
                 let delta = noise * Grain.weight(luminance: l) * amp
                 for c in 0..<3 {
                     let expected = min(max(rgb[c] + delta, 0), 1)

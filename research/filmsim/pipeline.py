@@ -14,6 +14,12 @@ from .hue import WARM_HUE_FILM_SIMS, x_series_warm_hue
 from .tone import tone_curve, x_series_shoulder
 
 
+# Keys `film_sim_key` gives official Fujifilm LUTs. Only these get the X-series highlight
+# shoulder (#16): it pulls the GFX LUTs towards X-series JPEGs, and a look fitted to another
+# camera's JPEGs (scripts/fit_look.py) already has that camera's highlights in the LUT.
+FUJIFILM_FILM_SIMS = ("provia", "classic_chrome", "lut")
+
+
 @dataclass
 class Recipe:
     film_sim: str = "provia"          # key into the LUT dict passed to render(); "provia" also gets the warm-hue fix
@@ -56,7 +62,8 @@ def render(
     x = np.clip(x, 0.0, None)
     log = FLOG2.encode(x)
     out = luts[recipe.film_sim].apply(np.clip(log, 0.0, 1.0))
-    out = x_series_shoulder(out)
+    if recipe.film_sim in FUJIFILM_FILM_SIMS:
+        out = x_series_shoulder(out)
     if recipe.film_sim in WARM_HUE_FILM_SIMS:
         out = x_series_warm_hue(out)
     out = tone_curve(out, recipe.highlight, recipe.shadow)

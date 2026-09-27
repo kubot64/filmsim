@@ -13,9 +13,17 @@ final class LookTests: XCTestCase {
         XCTAssertEqual(FilmSimulation.portra400vc.displayName, "アメリカ")
     }
 
-    func testRecipesStoredBeforeImportsStillDecode() {
-        let old = Data(#"{"filmSimulation":"classicChrome","exposureEV":0.5}"#.utf8)
+    /// A recipe saved before `importedLUT` existed has every other key and no "importedLUT".
+    /// (A JSON missing other keys falls back to the default recipe; that is RecipeStorageTests.)
+    func testRecipesStoredBeforeImportsStillDecode() throws {
+        var before = Recipe()
+        before.filmSimulation = .classicChrome
+        before.exposureEV = 0.5
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: before.encoded) as? [String: Any])
+        json.removeValue(forKey: "importedLUT")
+        let old = try JSONSerialization.data(withJSONObject: json)
         let r = Recipe.decoded(from: old)
+        XCTAssertEqual(r.exposureEV, 0.5)
         XCTAssertEqual(r.filmSimulation, .classicChrome)
         XCTAssertNil(r.importedLUT)
         XCTAssertEqual(r.look, .builtIn(.classicChrome))

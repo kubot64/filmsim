@@ -3,13 +3,13 @@ from pathlib import Path
 import colour
 import numpy as np
 
-from filmsim import portra400vc
+from filmsim import portra400vc, portra400vc_scan
 from filmsim.cube import CubeLUT
 from filmsim.flog2 import FLOG2
 from filmsim.gamut import BT2020
 from filmsim.negative import PORTRA_400VC, bake_lut, layer_matrix, render
 
-COMMITTED = Path(__file__).parents[2] / "ios/FilmSim/LUTs/Portra400VC_33grid.cube"
+COMMITTED = Path(__file__).parents[2] / "ios/FilmSim/LUTs/Portra400VC_65grid.cube"
 
 
 def lch(srgb: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -51,23 +51,19 @@ def test_tone_rises_monotonically():
     assert np.all(np.diff(out) >= 0)
 
 
-def test_colorchecker_is_vivid_but_keeps_hues():
-    """What the settings were tuned for: about 1.2x chroma, no hue moved by more than 10°."""
-    lin = colorchecker_linear()
-    true = colour.cctf_encoding(np.clip(colour.XYZ_to_sRGB(colour.RGB_to_XYZ(
-        lin, colour.RGB_COLOURSPACES["ITU-R BT.2020"], apply_cctf_decoding=False),
-        apply_cctf_encoding=False), 0, 1), function="sRGB")
-    _, c_true, h_true = lch(true)
-    _, c_out, h_out = lch(render(lin, portra400vc, PORTRA_400VC))
-    chromatic = c_true > 15
-    ratio = (c_out[chromatic] / c_true[chromatic]).mean()
-    assert 1.1 < ratio < 1.35
-    dh = (h_out - h_true + 180) % 360 - 180
-    assert np.abs(dh[chromatic]).max() < 10
+def test_colorchecker_matches_the_real_scan():
+    """The settings were fitted to a Portra 400VC scan of a ColorChecker (portra400vc_scan)."""
+    lin = colorchecker_linear() * 2.0 ** portra400vc_scan.SCAN_EXPOSURE_EV
+    out = colour.XYZ_to_Lab(colour.sRGB_to_XYZ(render(lin, portra400vc, PORTRA_400VC)))
+    de = colour.delta_E(out, np.array(portra400vc_scan.SCAN_LAB), method="CIE 2000")
+    assert de.mean() < 3.5
+    red = 14
+    _, _, hue = lch(render(lin[red], portra400vc, PORTRA_400VC))
+    assert 30 < hue < 42  # the scan's red leans orange, at 36°
 
 
 def test_committed_lut_matches_the_model():
-    """ios/FilmSim/LUTs/Portra400VC_33grid.cube must be re-baked when the model changes."""
+    """ios/FilmSim/LUTs/Portra400VC_65grid.cube must be re-baked when the model changes."""
     committed = CubeLUT.load(COMMITTED)
     fresh = bake_lut(portra400vc, PORTRA_400VC, size=committed.size)
     np.testing.assert_allclose(committed.table, fresh.table, atol=2e-6)

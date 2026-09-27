@@ -88,22 +88,35 @@ def straight_line_gamma(film: ModuleType) -> np.ndarray:
     return np.array([np.polyfit(x[near], np.asarray(film.STATUS_M[k])[near], 1)[0] for k in "RGB"])
 
 
+IDENTITY3 = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+
+
 @dataclass(frozen=True)
 class PrintSettings:
-    """How the negative is turned into a positive. Not on the datasheet; set by eye."""
+    """How the negative is turned into a positive. Not on the datasheet; fitted to a real scan."""
 
     contrast: float = 1.35       # print gamma on top of the negative, in log units
     saturation: float = 1.0      # spread of the channels around their luminance, in log units
     shadow_stops: float = 7.0    # how far below mid-grey the film base (D-min) prints as black
     black: float = 0.012         # display-linear floor: paper D-max or a scanner's black point
     white: float = 1.0           # display-linear ceiling of the print curve
+    # The scanner's colour matrix on display-linear RGB. Rows sum to 1, so greys stay grey.
+    scan_matrix: tuple[tuple[float, float, float], ...] = IDENTITY3
 
 
-# Tuned against reference scans of Portra 400VC (deep blue sky, red balloons, lime-green
-# upholstery, skin, a red gingham cloth). On the ColorChecker this gives about 1.2x the
-# chroma of the true colours, reds 2 to 5° towards orange, greens 3 to 6° towards yellow,
-# and blue sky on hue. Neutrals stay neutral (C* < 1 from white to black).
-PORTRA_400VC = PrintSettings(contrast=1.5, saturation=1.7, black=0.005)
+# Fitted to a scan of Portra 400VC with an X-Rite ColorChecker in the frame (`portra400vc_scan`):
+# contrast, saturation, shadows, black and the scanner matrix, by Powell on the mean ΔE2000 of
+# the 24 patches, with the scan's grey balance and brightness left free. Mean ΔE 3.3, median
+# 2.8 (the true ColorChecker colours are 17 from the scan). The matrix is what moves reds
+# towards orange (the scan's red is at 36°; without it the model put red at 18°) and blues
+# towards cyan, as the user's reference scans also showed.
+PORTRA_400VC = PrintSettings(
+    contrast=1.83,
+    saturation=1.15,
+    shadow_stops=9.67,
+    black=0.0,
+    scan_matrix=((1.267, -0.317, 0.050), (0.033, 0.905, 0.062), (-0.050, 0.114, 0.936)),
+)
 
 
 def tone(film: ModuleType, log_h: np.ndarray) -> np.ndarray:
@@ -147,11 +160,17 @@ def render(linear: np.ndarray, film: ModuleType, settings: PrintSettings, m: np.
     k = MIDDLE_GREY ** c * (1 / MIDDLE_GREY - 1)
     y = e ** c / (e ** c + k)
     y = settings.black + (settings.white - settings.black) * y
+    y = y @ np.asarray(settings.scan_matrix).T
     return colour.cctf_encoding(np.clip(y, 0.0, 1.0), function="sRGB")
 
 
-def bake_lut(film: ModuleType, settings: PrintSettings, size: int = 33, title: str = "") -> CubeLUT:
-    """F-Log2 / F-Gamut codes in, sRGB codes out: the same interface as the official LUTs."""
+def bake_lut(film: ModuleType, settings: PrintSettings, size: int = 65, title: str = "") -> CubeLUT:
+    """F-Log2 / F-Gamut codes in, sRGB codes out: the same interface as the official LUTs.
+
+    65 like the official LUTs. At 33 the trilinear lookup put mid-grey at 0.166 / 0.172 / 0.171
+    instead of 0.18 (a faint cyan) and grey ramps were up to ΔE 1.7 off the model; at 65 greys
+    stay within 0.33 and 99 % of random colours within 1.2.
+    """
     m = layer_matrix(film)
     grid = CubeLUT.identity(size).table
     linear = FLOG2.decode(grid)

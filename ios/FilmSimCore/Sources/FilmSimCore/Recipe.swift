@@ -20,7 +20,7 @@ public enum FilmSimulation: String, CaseIterable, Codable, Sendable {
         switch self {
         case .provia: return "FLog2_to_PROVIA_65grid_V.1.00"
         case .classicChrome: return "FLog2_to_CLASSIC-CHROME_65grid_V.1.00"
-        case .portra400vc: return "Portra400VC_33grid"
+        case .portra400vc: return "Portra400VC_65grid"
         }
     }
 

@@ -21,4 +21,4 @@ ios/**/DerivedData/
 # macOS
 .DS_Store
 ios/FilmSim/LUTs/*.cube
-!ios/FilmSim/LUTs/Portra400VC_33grid.cube
+!ios/FilmSim/LUTs/Portra400VC_65grid.cube

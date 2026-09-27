@@ -13,8 +13,16 @@ final class CameraController: NSObject, ObservableObject {
 
     @Published var isReady = false
     @Published var status = "起動中…"
-    /// Aspect-fill zoom so the portrait 2:3 preview matches the 35mm crop. 4:3 until the format is known.
-    @Published var previewZoom: CGFloat = PreviewFraming.defaultZoom
+    /// 35mm-equivalent crop for the next shot. Stored under `FocalLength.storageKey`,
+    /// which the settings and develop screens also write.
+    @Published private(set) var focalLength = FocalLength.stored()
+    /// Format width/height of the active camera. 4:3 until the format is known.
+    private var sensorAspect = PreviewFraming.defaultSensorAspect
+    /// Aspect-fill zoom so the portrait 2:3 preview matches the focal-length crop.
+    @Published private(set) var previewZoom = CGFloat(PreviewFraming.zoom(
+        sensorAspectWidthOverHeight: PreviewFraming.defaultSensorAspect,
+        focalLength: FocalLength.stored()
+    ))
     /// Capture-time exposure compensation in EV (`ExposureCompensation`), separate from the recipe's.
     /// Stored under `ExposureCompensation.storageKey`, which the settings screen also writes.
     @Published private(set) var exposureBias = Float(UserDefaults.standard.double(forKey: ExposureCompensation.storageKey))
@@ -23,8 +31,9 @@ final class CameraController: NSObject, ObservableObject {
     private var subjectAreaObserver: NSObjectProtocol?
 
     struct PendingCapture {
-        /// The recipe when the shutter was pressed; a later change applies to the next shot.
+        /// The recipe and focal length when the shutter was pressed; a later change applies to the next shot.
         let recipe: Recipe
+        let focalLength: FocalLength
         var rawData: Data?
         var processedData: Data?
     }
@@ -35,8 +44,9 @@ final class CameraController: NSObject, ObservableObject {
         }
         // `.task` runs again each time the Camera tab reappears; configure the session only once.
         guard device == nil else {
-            // The settings screen may have changed the stored value while this tab was away.
+            // The settings screen may have changed the stored values while this tab was away.
             applyStoredExposureBias()
+            setFocalLength(FocalLength.stored())
             Task.detached { [session] in if !session.isRunning { session.startRunning() } }
             return
         }
@@ -79,10 +89,9 @@ final class CameraController: NSObject, ObservableObject {
             output.maxPhotoDimensions = dims
             let video = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
             if video.height > 0 {
-                previewZoom = CGFloat(PreviewFraming.zoom(
-                    sensorAspectWidthOverHeight: Double(video.width) / Double(video.height)
-                ))
+                sensorAspect = Double(video.width) / Double(video.height)
             }
+            setFocalLength(FocalLength.stored())
             photoDims = dims
             dimensionList = format.supportedMaxPhotoDimensions.map { "\($0.width)x\($0.height)" }.joined(separator: ", ")
         } else {
@@ -105,6 +114,13 @@ final class CameraController: NSObject, ObservableObject {
         }
 
         Task.detached { [session] in session.startRunning() }
+    }
+
+    /// Only the crop changes: the whole sensor is still captured, and the preview zooms to match.
+    func setFocalLength(_ newValue: FocalLength) {
+        focalLength = newValue
+        UserDefaults.standard.set(newValue.rawValue, forKey: FocalLength.storageKey)
+        previewZoom = CGFloat(PreviewFraming.zoom(sensorAspectWidthOverHeight: sensorAspect, focalLength: newValue))
     }
 
     /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.
@@ -188,7 +204,7 @@ final class CameraController: NSObject, ObservableObject {
         let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
         settings.maxPhotoDimensions = output.maxPhotoDimensions
         // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
-        inflight[settings.uniqueID] = PendingCapture(recipe: recipe)
+        inflight[settings.uniqueID] = PendingCapture(recipe: recipe, focalLength: focalLength)
         output.capturePhoto(with: settings, delegate: self)
     }
 }
@@ -213,7 +229,8 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             let saved = await Developer.shared.developAndSave(
                 rawData: raw,
                 saveDNG: UserDefaults.standard.bool(forKey: "saveDNG"),
-                recipe: pending.recipe
+                recipe: pending.recipe,
+                focalLength: pending.focalLength
             )
             self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
         }
@@ -245,7 +262,7 @@ struct CameraPreview: UIViewRepresentable {
     /// shows the same center crop `SensorCrop` applies before the shot is turned upright.
     final class PreviewView: UIView {
         let videoPreviewLayer = AVCaptureVideoPreviewLayer()
-        var zoom: CGFloat = PreviewFraming.defaultZoom
+        var zoom: CGFloat = 1
         var onFocus: ((CGPoint, Bool) -> Void)?
         /// Square drawn where the user tapped. Fades after a tap, stays while locked.
         private let focusMark = UIView(frame: CGRect(x: 0, y: 0, width: 72, height: 72))

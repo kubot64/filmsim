@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Plain preview (no film simulation live), shutter, RAW capture.
 /// Tap the preview to focus and meter there, long-press for AE/AF lock.
-/// The ± buttons set capture-time exposure compensation.
+/// The ± buttons set capture-time exposure compensation; the mm button steps the focal length.
 /// Shots are developed with the last-used recipe, shared with the develop screen (#8).
 /// The film simulation can be switched here; other settings come from the develop screen.
 struct CameraView: View {
@@ -38,17 +38,20 @@ struct CameraView: View {
 
     private var recipeBar: some View {
         VStack(spacing: 4) {
-            Menu {
-                Picker("Film simulation", selection: filmSimulation) {
-                    ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
+            HStack(spacing: 8) {
+                filmSimulationMenu
+                Button {
+                    camera.setFocalLength(camera.focalLength.next)
+                } label: {
+                    Text(camera.focalLength.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.5), in: Capsule())
+                        .foregroundStyle(.white)
                 }
-            } label: {
-                Label(recipe.filmSimulation.displayName, systemImage: "camera.filters")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.5), in: Capsule())
-                    .foregroundStyle(.white)
+                .accessibilityLabel("画角 \(camera.focalLength.displayName)")
             }
             if camera.isAEAFLocked {
                 Text("AE/AF LOCK")
@@ -66,6 +69,21 @@ struct CameraView: View {
                     .padding(.vertical, 2)
                     .background(.black.opacity(0.4), in: Capsule())
             }
+        }
+    }
+
+    private var filmSimulationMenu: some View {
+        Menu {
+            Picker("Film simulation", selection: filmSimulation) {
+                ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
+            }
+        } label: {
+            Label(recipe.filmSimulation.displayName, systemImage: "camera.filters")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.black.opacity(0.5), in: Capsule())
+                .foregroundStyle(.white)
         }
     }
 

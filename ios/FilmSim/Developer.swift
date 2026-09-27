@@ -52,17 +52,23 @@ final class Developer {
     }
 
     /// Both screens pass the stored last-used recipe (`Recipe.storageKey`, #8).
-    func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe) async -> CGImage? {
+    func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe, focalLength: FocalLength) async -> CGImage? {
         guard let pipeline else { return nil }
-        let box = RenderBox(pipeline: pipeline, context: context, recipe: recipe, rawData: rawData, scaleFactor: scaleFactor)
+        let box = RenderBox(
+            pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
+            rawData: rawData, scaleFactor: scaleFactor
+        )
         return await Task.detached(priority: .userInitiated) { box.cgImage() }.value
     }
 
-    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe) async -> DevelopSaveResult {
+    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveResult {
         guard await authorizeAdd() else { return .permissionDenied }
         let heic: Data?
         if let pipeline {
-            let box = RenderBox(pipeline: pipeline, context: context, recipe: recipe, rawData: rawData, scaleFactor: 1)
+            let box = RenderBox(
+                pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
+                rawData: rawData, scaleFactor: 1
+            )
             heic = await Task.detached(priority: .userInitiated) { box.heic() }.value
         } else {
             heic = nil
@@ -104,13 +110,15 @@ private final class RenderBox: @unchecked Sendable {
     let pipeline: Pipeline
     let context: CIContext
     let recipe: Recipe
+    let focalLength: FocalLength
     let rawData: Data
     let scaleFactor: Float
 
-    init(pipeline: Pipeline, context: CIContext, recipe: Recipe, rawData: Data, scaleFactor: Float) {
+    init(pipeline: Pipeline, context: CIContext, recipe: Recipe, focalLength: FocalLength, rawData: Data, scaleFactor: Float) {
         self.pipeline = pipeline
         self.context = context
         self.recipe = recipe
+        self.focalLength = focalLength
         self.rawData = rawData
         self.scaleFactor = scaleFactor
     }
@@ -135,6 +143,7 @@ private final class RenderBox: @unchecked Sendable {
     private func rendered() -> CIImage? {
         var options = RawDeveloper.Options()
         options.scaleFactor = scaleFactor
+        options.focalLength = focalLength
         guard let linear = RawDeveloper.developLinear(rawData: rawData, options: options) else { return nil }
         return pipeline.render(linear, recipe: recipe, grainPixelScale: Double(scaleFactor))
     }

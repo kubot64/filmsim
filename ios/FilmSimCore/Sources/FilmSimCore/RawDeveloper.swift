@@ -11,12 +11,13 @@ public enum RawDeveloper {
         public var sharpness: Float = 0.0                  // sharpening is done later, if at all
         /// 1 is full resolution. Previews pass a smaller value so demosaic matches the display size.
         public var scaleFactor: Float = 1
+        public var focalLength: FocalLength = .default
         public init() {}
     }
 
     /// Returns a linear CIImage in the filter's working space (Display P3 linear on iOS).
     ///
-    /// The 35mm crop runs on the sensor-native buffer. `CIRAWFilter` otherwise
+    /// The focal-length crop runs on the sensor-native buffer. `CIRAWFilter` otherwise
     /// applies the shot orientation first, and a portrait frame would crop the
     /// short side (about 47mm instead of 35mm).
     public static func developLinear(rawData: Data, options: Options = Options()) -> CIImage? {
@@ -36,6 +37,6 @@ public enum RawDeveloper {
         // real red/blue data around lights, which then render as flat light grey (#24).
         filter.extendedDynamicRangeAmount = 1
         guard let sensor = filter.outputImage else { return nil }
-        return sensor.cropped35mmThreeByTwo(shot: shot)
+        return sensor.croppedThreeByTwo(focalLength: options.focalLength, shot: shot)
     }
 }

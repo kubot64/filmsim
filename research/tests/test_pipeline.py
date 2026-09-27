@@ -39,7 +39,7 @@ def test_warm_hue_fix_applies_to_provia_only():
 
 
 def test_film_sim_key_from_official_lut_names():
-    from filmsim.cube import film_sim_key
+    from filmsim.looks import film_sim_key
 
     assert film_sim_key("luts/official/FLog2_to_PROVIA_65grid_V.1.00.cube") == "provia"
     assert film_sim_key("FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube") == "classic_chrome"

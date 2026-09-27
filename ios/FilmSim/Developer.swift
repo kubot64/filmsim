@@ -12,6 +12,24 @@ enum DevelopSaveResult {
     case savedDNGOnly(setupError: String?)
     case savedHEICAndDNG
     case savedHEIC
+
+    /// Japanese status text for the camera and develop screens.
+    var message: String {
+        switch self {
+        case .permissionDenied:
+            return "写真ライブラリへのアクセスが拒否されました"
+        case .developFailed(let setupError):
+            return setupError ?? "現像に失敗しました"
+        case .saveFailed(let localizedDescription):
+            return "保存に失敗しました: \(localizedDescription)"
+        case .savedDNGOnly(let setupError):
+            return "DNG のみ保存しました（\(setupError ?? "現像に失敗")）"
+        case .savedHEICAndDNG:
+            return "HEIC と DNG を保存しました"
+        case .savedHEIC:
+            return "HEIC を保存しました"
+        }
+    }
 }
 
 /// Runs the FilmSimCore pipeline on a DNG and writes HEIC (+ optional DNG) to the photo library.
@@ -26,39 +44,45 @@ final class Developer {
         .workingColorSpace: CGColorSpace(name: CGColorSpace.linearDisplayP3)!,
         .outputColorSpace: CGColorSpace(name: CGColorSpace.linearDisplayP3)!,
     ])
-    private(set) var pipeline: Pipeline?
-    /// Set when kernels or LUT files are missing. Rendering a loaded simulation still works.
+    private var kernels: Pipeline.Kernels?
+    private var luts: [FilmSimulation: CubeLUT] = [:]
+    /// Bundle resource was not found.
+    private var missingLUTs: Set<FilmSimulation> = []
+    /// Bundle resource existed but `CubeLUT(contentsOf:)` failed; value is the load error text.
+    private var unreadableLUTs: [FilmSimulation: String] = [:]
+    private var lutLoads: [FilmSimulation: Task<LUTLoadOutcome, Never>] = [:]
+    /// Imported LUTs read so far, by `ImportedLUT` name. Emptied by `reloadImportedLUTs`.
+    private var importedLUTs: [String: CubeLUT] = [:]
+    /// Bumped by `reloadImportedLUTs`, so a read that started before it is not cached.
+    private var importedGeneration = 0
+    /// Set when kernels are missing, or when a requested LUT is missing/unreadable.
+    /// Rendering other loaded simulations still works.
     private(set) var setupError: String?
+
+    private enum LUTLoadOutcome {
+        case loaded(CubeLUT)
+        case missing
+        case unreadable(String)
+    }
 
     private init() {
         do {
-            let kernels = try Pipeline.Kernels.load()
-            var luts: [FilmSimulation: CubeLUT] = [:]
-            var missing: [String] = []
-            for sim in FilmSimulation.allCases {
-                if let url = Bundle.main.url(forResource: sim.lutFileName, withExtension: "cube") {
-                    luts[sim] = try CubeLUT(contentsOf: url)
-                } else {
-                    missing.append(sim.displayName)
-                }
-            }
-            pipeline = Pipeline(kernels: kernels, luts: luts, importedLUTs: LUTLibrary.shared.loadAll())
-            if !missing.isEmpty {
-                setupError = "LUT がありません: \(missing.joined(separator: ", "))"
-            }
+            kernels = try Pipeline.Kernels.load()
         } catch {
             setupError = "パイプラインを初期化できません: \(error.localizedDescription)"
         }
     }
 
-    /// Called by `LUTLibrary` after an import or a delete.
+    /// Called by `LUTLibrary` after an import or a delete. The next render reads the file again,
+    /// since an import can replace a file under the same name.
     func reloadImportedLUTs() {
-        pipeline?.importedLUTs = LUTLibrary.shared.loadAll()
+        importedLUTs = [:]
+        importedGeneration += 1
     }
 
     /// Both screens pass the stored last-used recipe (`Recipe.storageKey`, #8).
     func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe, focalLength: FocalLength) async -> CGImage? {
-        guard let pipeline else { return nil }
+        guard let pipeline = await pipeline(for: recipe) else { return nil }
         let box = RenderBox(
             pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
             rawData: rawData, scaleFactor: scaleFactor
@@ -69,7 +93,7 @@ final class Developer {
     func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveResult {
         guard await authorizeAdd() else { return .permissionDenied }
         let heic: Data?
-        if let pipeline {
+        if let pipeline = await pipeline(for: recipe) {
             let box = RenderBox(
                 pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
                 rawData: rawData, scaleFactor: 1
@@ -101,6 +125,80 @@ final class Developer {
         }
         if heic == nil { return .savedDNGOnly(setupError: setupError) }
         return saveDNG ? .savedHEICAndDNG : .savedHEIC
+    }
+
+    /// Kernels plus the LUT `recipe` renders with (`ResolvedLook`). An imported LUT is used when
+    /// its file still reads; otherwise the built-in simulation is, as `ResolvedLook` falls back.
+    /// LUTs load off the main actor on first use; a missing or corrupt built-in file only
+    /// disables that simulation.
+    private func pipeline(for recipe: Recipe) async -> Pipeline? {
+        guard let kernels else { return nil }
+        if let name = recipe.importedLUT, let lut = await loadImportedLUT(name) {
+            return Pipeline(kernels: kernels, luts: [:], importedLUTs: [name: lut])
+        }
+        guard let lut = await loadLUT(recipe.filmSimulation) else { return nil }
+        return Pipeline(kernels: kernels, luts: [recipe.filmSimulation: lut])
+    }
+
+    /// Nil when the import is gone or no longer parses; the recipe then renders with its
+    /// built-in simulation, like before the import.
+    private func loadImportedLUT(_ name: String) async -> CubeLUT? {
+        if let lut = importedLUTs[name] { return lut }
+        guard let url = LUTLibrary.shared.fileURL(forImported: name) else { return nil }
+        let generation = importedGeneration
+        let lut = await Task.detached(priority: .userInitiated) { try? CubeLUT(contentsOf: url) }.value
+        if let lut, generation == importedGeneration { importedLUTs[name] = lut }
+        return lut
+    }
+
+    private func loadLUT(_ simulation: FilmSimulation) async -> CubeLUT? {
+        if let lut = luts[simulation] { return lut }
+        if missingLUTs.contains(simulation) || unreadableLUTs[simulation] != nil {
+            refreshSetupError()
+            return nil
+        }
+        let task = lutLoads[simulation] ?? Task.detached(priority: .userInitiated) { () -> LUTLoadOutcome in
+            guard let url = Bundle.main.url(forResource: simulation.lutFileName, withExtension: "cube") else {
+                return .missing
+            }
+            do {
+                return .loaded(try CubeLUT(contentsOf: url))
+            } catch {
+                return .unreadable(error.localizedDescription)
+            }
+        }
+        lutLoads[simulation] = task
+        let outcome = await task.value
+        lutLoads[simulation] = nil
+        switch outcome {
+        case .loaded(let lut):
+            luts[simulation] = lut
+            return lut
+        case .missing:
+            missingLUTs.insert(simulation)
+            refreshSetupError()
+            return nil
+        case .unreadable(let message):
+            unreadableLUTs[simulation] = message
+            refreshSetupError()
+            return nil
+        }
+    }
+
+    /// Called only after a LUT load was attempted (`pipeline(for:)` already requires kernels).
+    private func refreshSetupError() {
+        var parts: [String] = []
+        let missingNames = FilmSimulation.allCases.filter { missingLUTs.contains($0) }.map(\.displayName)
+        if !missingNames.isEmpty {
+            parts.append("LUT がありません: \(missingNames.joined(separator: ", "))")
+        }
+        for sim in FilmSimulation.allCases {
+            if let detail = unreadableLUTs[sim] {
+                parts.append("\(sim.displayName) の LUT を読めません: \(detail)")
+            }
+        }
+        guard !parts.isEmpty else { return }
+        setupError = parts.joined(separator: "。")
     }
 
     private func authorizeAdd() async -> Bool {

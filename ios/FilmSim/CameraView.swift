@@ -12,7 +12,8 @@ struct CameraView: View {
     /// Observed so the menu label updates when an imported LUT is deleted.
     @ObservedObject private var library = LUTLibrary.shared
 
-    private var recipe: Recipe { Recipe.decoded(from: storedRecipe) }
+    private var recipe: Binding<Recipe> { Recipe.binding($storedRecipe) }
+    private var currentRecipe: Recipe { recipe.wrappedValue }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -25,7 +26,7 @@ struct CameraView: View {
                 Text(camera.status).font(.footnote).foregroundStyle(.white)
                 exposureControl
                 Button {
-                    camera.capture(recipe: recipe)
+                    camera.capture(recipe: currentRecipe)
                 } label: {
                     Circle().fill(.white).frame(width: 72, height: 72)
                 }
@@ -39,7 +40,8 @@ struct CameraView: View {
     }
 
     private var recipeBar: some View {
-        VStack(spacing: 4) {
+        let summary = currentRecipe.adjustmentSummary
+        return VStack(spacing: 4) {
             HStack(spacing: 8) {
                 filmSimulationMenu
                 Button {
@@ -63,8 +65,8 @@ struct CameraView: View {
                     .background(Color.yellow, in: Capsule())
                     .foregroundStyle(.black)
             }
-            if !recipe.adjustmentSummary.isEmpty {
-                Text(recipe.adjustmentSummary)
+            if !summary.isEmpty {
+                Text(summary)
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.85))
                     .padding(.horizontal, 8)
@@ -76,9 +78,12 @@ struct CameraView: View {
 
     private var filmSimulationMenu: some View {
         Menu {
-            LookPicker(title: "Look", selection: look)
+            LookPicker(title: "Look", recipe: recipe)
         } label: {
-            Label(library.title(for: recipe.effectiveLook(importedNames: library.names)), systemImage: "camera.filters")
+            Label(
+                library.title(for: currentRecipe.effectiveLook(importedNames: library.names)),
+                systemImage: "camera.filters"
+            )
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -108,16 +113,5 @@ struct CameraView: View {
         .padding(.vertical, 4)
         .background(.black.opacity(0.5), in: Capsule())
         .disabled(!camera.isReady)
-    }
-
-    private var look: Binding<Look> {
-        Binding(
-            get: { recipe.effectiveLook(importedNames: library.names) },
-            set: { newValue in
-                var r = recipe
-                r.look = newValue
-                storedRecipe = r.encoded
-            }
-        )
     }
 }

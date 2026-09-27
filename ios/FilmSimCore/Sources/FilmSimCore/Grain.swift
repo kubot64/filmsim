@@ -8,21 +8,6 @@ import Foundation
 /// standard deviation matches scipy's `gaussian_filter` followed by `/= std`.
 /// Core Image's gaussian is not bit-identical to scipy, so the GPU amplitude is approximate.
 public enum Grain {
-    public static func amplitude(_ s: GrainStrength) -> Double {
-        switch s {
-        case .off: return 0
-        case .weak: return 0.025
-        case .strong: return 0.05
-        }
-    }
-
-    public static func sigma(_ s: GrainSize) -> Double {
-        switch s {
-        case .small: return 0.6
-        case .large: return 1.1
-        }
-    }
-
     /// `sqrt(L) * (1-L) * 2` with L clamped to [0, 1].
     public static func weight(luminance: Double) -> Double {
         let l = min(max(luminance, 0), 1)
@@ -61,21 +46,19 @@ public enum Grain {
         pixelScale: Double = 1,
         kernel: CIColorKernel
     ) -> CIImage {
-        let amp = amplitude(strength)
+        let amp = strength.amplitude
         if amp == 0 { return image }
-        let sigma = sigma(size) * pixelScale
+        let sigma = size.sigma * pixelScale
         let gain = unitNoiseGain(sigma: sigma)
         let pad = CGFloat(max(sigma * 4, 2))
         let expanded = image.extent.insetBy(dx: -pad, dy: -pad)
-        let noise = CIFilter.randomGenerator().outputImage!
+        guard let random = CIFilter.randomGenerator().outputImage else { return image }
+        // Scale uniform [0, 1] noise to mean 0, std ≈ 1 after the blur (ColorMatrixVectors rows).
+        var matrix = ColorMatrixVectors(r: [gain, 0, 0], g: [0, 0, 0], b: [0, 0, 0]).ciColorMatrixParameters
+        matrix["inputBiasVector"] = CIVector(x: CGFloat(-0.5 * gain), y: 0, z: 0, w: 0)
+        let noise = random
             .cropped(to: expanded)
-            .applyingFilter("CIColorMatrix", parameters: [
-                "inputRVector": CIVector(x: CGFloat(gain), y: 0, z: 0, w: 0),
-                "inputGVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-                "inputBVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-                "inputBiasVector": CIVector(x: CGFloat(-0.5 * gain), y: 0, z: 0, w: 0),
-            ])
+            .applyingFilter("CIColorMatrix", parameters: matrix)
             .clampedToExtent()
             .applyingGaussianBlur(sigma: sigma)
             .cropped(to: image.extent)
@@ -83,5 +66,25 @@ public enum Grain {
             extent: image.extent,
             arguments: [image, noise, NSNumber(value: Float(amp))]
         ) ?? image
+    }
+}
+
+extension GrainStrength {
+    public var amplitude: Double {
+        switch self {
+        case .off: return 0
+        case .weak: return 0.025
+        case .strong: return 0.05
+        }
+    }
+}
+
+extension GrainSize {
+    /// Gaussian sigma in pixels at full resolution.
+    public var sigma: Double {
+        switch self {
+        case .small: return 0.6
+        case .large: return 1.1
+        }
     }
 }

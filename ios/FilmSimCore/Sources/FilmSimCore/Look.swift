@@ -44,7 +44,7 @@ extension Recipe {
 public enum ImportedLUT {
     /// Fujifilm names its official files "FLog2_to_<SIMULATION>_<grid>_V.x.xx.cube". Those get the
     /// same X-series fixes as the built-in Fujifilm looks; any other LUT is used as it is.
-    /// Mirrors research/filmsim/cube.py `film_sim_key`.
+    /// Mirrors research/filmsim/looks.py `film_sim_key`.
     public static func usesXSeriesShoulder(name: String) -> Bool {
         name.uppercased().hasPrefix("FLOG2_TO_")
     }
@@ -88,7 +88,7 @@ public struct ResolvedLook {
         return ResolvedLook(
             lut: lut,
             xSeriesShoulder: recipe.filmSimulation.usesXSeriesShoulder,
-            warmHue: WarmHue.applies(to: recipe.filmSimulation)
+            warmHue: recipe.filmSimulation.usesWarmHue
         )
     }
 }

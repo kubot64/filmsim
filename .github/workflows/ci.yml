@@ -24,8 +24,7 @@ jobs:
         working-directory: research
         run: uv sync --locked
       - name: Test
-        working-directory: research
-        run: uv run pytest -q -rs
+        run: make test-py
 
   swift-package:
     name: swift-package
@@ -35,8 +34,7 @@ jobs:
       - name: Toolchain
         run: swift --version && xcodebuild -version
       - name: Test
-        working-directory: ios/FilmSimCore
-        run: swift test
+        run: make test-swift
 
   ios-app:
     name: ios-app
@@ -47,8 +45,7 @@ jobs:
       - name: Install tools
         run: brew install xcodegen xcbeautify
       - name: Generate project
-        working-directory: ios
-        run: xcodegen generate
+        run: make xcode
       - name: Build (simulator, unsigned)
         working-directory: ios
         run: |

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .gamut import BT709_LUMA
+
 
 def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
     t = np.clip((x - edge0) / (edge1 - edge0), 0.0, 1.0)
@@ -19,7 +21,7 @@ def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
 # Chrome pairs from seven bodies; it lifts highlights toward X-series camera JPEGs.
 SHOULDER_KNEE = 0.6
 SHOULDER_GAMMA = 0.5
-_LUMA = np.array([0.2126, 0.7152, 0.0722])
+_LUMA = np.asarray(BT709_LUMA)
 
 
 def x_series_shoulder(rgb: np.ndarray) -> np.ndarray:

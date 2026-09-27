@@ -96,13 +96,9 @@ final class LUTLibrary: ObservableObject {
         Developer.shared.reloadImportedLUTs()
     }
 
-    /// Parses every imported file. Ones that no longer parse are left out, not fatal.
-    func loadAll() -> [String: CubeLUT] {
-        var luts: [String: CubeLUT] = [:]
-        for name in names {
-            if let lut = try? CubeLUT(contentsOf: fileURL(for: name)) { luts[name] = lut }
-        }
-        return luts
+    /// The file of an import that is still in the list, for `Developer` to read.
+    func fileURL(forImported name: String) -> URL? {
+        names.contains(name) ? fileURL(for: name) : nil
     }
 
     private func fileURL(for name: String) -> URL {

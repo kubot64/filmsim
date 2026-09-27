@@ -35,8 +35,8 @@ public struct Pipeline {
 
     public let kernels: Kernels
     public let luts: [FilmSimulation: CubeLUT]
-    /// LUTs the user imported, by `ImportedLUT` name. Replaced whenever the list changes.
-    public var importedLUTs: [String: CubeLUT]
+    /// LUTs the user imported, by `ImportedLUT` name.
+    public let importedLUTs: [String: CubeLUT]
 
     public init(kernels: Kernels, luts: [FilmSimulation: CubeLUT], importedLUTs: [String: CubeLUT] = [:]) {
         self.kernels = kernels

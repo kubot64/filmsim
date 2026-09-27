@@ -16,10 +16,7 @@ struct DevelopView: View {
     @State private var renderGeneration = 0
     @State private var renderTask: Task<Void, Never>?
 
-    private var recipe: Recipe { Recipe.decoded(from: storedRecipe) }
-    private var recipeBinding: Binding<Recipe> {
-        Binding(get: { recipe }, set: { storedRecipe = $0.encoded })
-    }
+    private var recipe: Binding<Recipe> { Recipe.binding($storedRecipe) }
 
     var body: some View {
         NavigationStack {
@@ -33,19 +30,19 @@ struct DevelopView: View {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
                 }
                 Form {
-                    LookPicker(title: "Look", selection: recipeBinding.look)
+                    LookPicker(title: "Look", recipe: recipe)
                     Picker("Focal length", selection: $focalLength) {
                         ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
                     }
-                    slider("Exposure", value: recipeBinding.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
-                    slider("WB R", value: recipeBinding.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
-                    slider("WB B", value: recipeBinding.wbShiftB, range: -9...9, step: 1, format: "%+.0f")
-                    slider("Highlight", value: recipeBinding.highlight, range: -2...4, step: 1, format: "%+.0f")
-                    slider("Shadow", value: recipeBinding.shadow, range: -2...4, step: 1, format: "%+.0f")
-                    Picker("Grain", selection: recipeBinding.grainStrength) {
+                    slider("Exposure", value: recipe.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
+                    slider("WB R", value: recipe.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
+                    slider("WB B", value: recipe.wbShiftB, range: -9...9, step: 1, format: "%+.0f")
+                    slider("Highlight", value: recipe.highlight, range: -2...4, step: 1, format: "%+.0f")
+                    slider("Shadow", value: recipe.shadow, range: -2...4, step: 1, format: "%+.0f")
+                    Picker("Grain", selection: recipe.grainStrength) {
                         ForEach(GrainStrength.allCases, id: \.self) { Text($0.rawValue) }
                     }
-                    Picker("Grain size", selection: recipeBinding.grainSize) {
+                    Picker("Grain size", selection: recipe.grainSize) {
                         ForEach(GrainSize.allCases, id: \.self) { Text($0.rawValue) }
                     }
                 }
@@ -98,6 +95,8 @@ struct DevelopView: View {
 
     /// Starts a preview develop, or remembers that the latest recipe still needs one.
     /// The in-flight develop runs to completion; its image is shown only if no newer request arrived.
+    /// `drainRenders` keeps going while `renderGeneration` advanced during the await, so an
+    /// `onChange` that fires mid-render does not race the published preview.
     private func scheduleRender() {
         guard rawData != nil else { return }
         renderGeneration += 1
@@ -109,14 +108,14 @@ struct DevelopView: View {
         defer { renderTask = nil }
         while !Task.isCancelled {
             guard let rawData else { return }
-            let current = recipe
+            let current = recipe.wrappedValue
             let currentFocal = focalLength
             let epoch = renderGeneration
             let cg = await Developer.shared.displayCGImage(
                 rawData: rawData, scaleFactor: 0.25, recipe: current, focalLength: currentFocal
             )
             if Task.isCancelled { return }
-            if renderGeneration != epoch || recipe != current || focalLength != currentFocal {
+            if renderGeneration != epoch || recipe.wrappedValue != current || focalLength != currentFocal {
                 guard renderGeneration != epoch, self.rawData != nil else { return }
                 continue
             }
@@ -134,7 +133,7 @@ struct DevelopView: View {
     private func save() async {
         guard let rawData else { return }
         let result = await Developer.shared.developAndSave(
-            rawData: rawData, saveDNG: false, recipe: recipe, focalLength: focalLength
+            rawData: rawData, saveDNG: false, recipe: recipe.wrappedValue, focalLength: focalLength
         )
         message = result.message
     }

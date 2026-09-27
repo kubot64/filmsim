@@ -2,13 +2,22 @@ import FilmSimCore
 import SwiftUI
 
 /// Built-in looks first, then the imported LUTs. Shared by the camera, develop and settings screens.
+/// Shows the look that will actually render (`effectiveLook`), so a deleted import reads as the
+/// built-in simulation it falls back to.
 struct LookPicker: View {
     let title: String
-    @Binding var selection: Look
+    @Binding var recipe: Recipe
     @ObservedObject private var library = LUTLibrary.shared
 
+    private var selection: Binding<Look> {
+        Binding(
+            get: { recipe.effectiveLook(importedNames: library.names) },
+            set: { recipe.look = $0 }
+        )
+    }
+
     var body: some View {
-        Picker(title, selection: $selection) {
+        Picker(title, selection: selection) {
             ForEach(FilmSimulation.allCases, id: \.self) { sim in
                 Text(sim.displayName).tag(Look.builtIn(sim))
             }

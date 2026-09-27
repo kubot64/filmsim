@@ -51,40 +51,29 @@ enum CameraSurvey {
 
         let session = AVCaptureSession()
         let output = AVCapturePhotoOutput()
-        let input: AVCaptureDeviceInput
-        do {
-            input = try AVCaptureDeviceInput(device: device)
-        } catch {
-            return failed(error.localizedDescription)
-        }
-        session.beginConfiguration()
-        if session.canSetSessionPreset(.photo) { session.sessionPreset = .photo }
-        guard session.canAddInput(input), session.canAddOutput(output) else {
+        switch PhotoSessionBuilder.configurePhotoSession(session, device: device, output: output) {
+        case .failure(let message):
+            return failed(message)
+        case .success(let info):
+            let bayer = !output.bayerRAWFormats.isEmpty
+            // ProRAW formats are listed only while ProRAW is enabled.
+            var proRAW = false
+            if output.isAppleProRAWSupported {
+                output.isAppleProRAWEnabled = true
+                proRAW = output.availableRawPhotoPixelFormatTypes.contains {
+                    AVCapturePhotoOutput.isAppleProRAWPixelFormat($0)
+                }
+            }
+
+            session.beginConfiguration()
+            for input in session.inputs { session.removeInput(input) }
+            session.removeOutput(output)
             session.commitConfiguration()
-            return failed("セッションに追加できません")
-        }
-        session.addInput(input)
-        session.addOutput(output)
-        let format = device.activeFormat
-        if let dims = format.supportedMaxPhotoDimensions.last {
-            output.maxPhotoDimensions = dims
-        }
-        session.commitConfiguration()
 
-        let bayer = output.availableRawPhotoPixelFormatTypes.contains { AVCapturePhotoOutput.isBayerRAWPixelFormat($0) }
-        // ProRAW formats are listed only while ProRAW is enabled.
-        var proRAW = false
-        if output.isAppleProRAWSupported {
-            output.isAppleProRAWEnabled = true
-            proRAW = output.availableRawPhotoPixelFormatTypes.contains { AVCapturePhotoOutput.isAppleProRAWPixelFormat($0) }
+            return CameraRawSupport(
+                id: device.uniqueID, name: name, bayerRAW: bayer, proRAW: proRAW,
+                maxPhotoSize: info.maxPhotoSize, error: nil
+            )
         }
-        let size = format.supportedMaxPhotoDimensions.last.map { "\($0.width)x\($0.height)" } ?? ""
-
-        session.beginConfiguration()
-        session.removeOutput(output)
-        session.removeInput(input)
-        session.commitConfiguration()
-
-        return CameraRawSupport(id: device.uniqueID, name: name, bayerRAW: bayer, proRAW: proRAW, maxPhotoSize: size, error: nil)
     }
 }

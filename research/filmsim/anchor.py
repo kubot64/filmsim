@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .gamut import RGBSpace
-
-MIDDLE_GREY = 0.18
+from .gamut import MIDDLE_GREY, RGBSpace
 
 
 def center_region(img: np.ndarray, fraction: float = 0.4) -> np.ndarray:

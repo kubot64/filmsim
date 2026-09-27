@@ -20,14 +20,13 @@ final class WarmHueTests: XCTestCase {
     func testKeepsLuma() {
         let rgb: SIMD3<Double> = [0.8, 0.45, 0.2]
         let out = WarmHue.evaluate(rgb)
-        let luma: SIMD3<Double> = [0.2126, 0.7152, 0.0722]
-        XCTAssertEqual((out * luma).sum(), (rgb * luma).sum(), accuracy: 1e-12)
+        XCTAssertEqual((out * BT709.luma).sum(), (rgb * BT709.luma).sum(), accuracy: 1e-12)
     }
 
     func testOnlyProvia() {
-        XCTAssertTrue(WarmHue.applies(to: .provia))
-        XCTAssertFalse(WarmHue.applies(to: .classicChrome))
-        XCTAssertFalse(WarmHue.applies(to: .portra400vc))
+        XCTAssertTrue(FilmSimulation.provia.usesWarmHue)
+        XCTAssertFalse(FilmSimulation.classicChrome.usesWarmHue)
+        XCTAssertFalse(FilmSimulation.portra400vc.usesWarmHue)
     }
 
     func testShoulderIsForFujifilmLooksOnly() {

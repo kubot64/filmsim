@@ -20,11 +20,10 @@ import numpy as np
 
 from .cube import CubeLUT
 from .flog2 import FLOG2
-from .gamut import BT2020, RGBSpace
+from .gamut import BT2020, BT709_LUMA, MIDDLE_GREY, RGBSpace
 
 # Layer order matches the output channels: the cyan-forming layer controls red, and so on.
 LAYERS = ("cyan_forming", "magenta_forming", "yellow_forming")
-MIDDLE_GREY = 0.18
 
 
 def _sensitivity(film: ModuleType, layer: str, wavelengths: np.ndarray) -> np.ndarray:
@@ -46,11 +45,11 @@ def layer_matrix(film: ModuleType, space: RGBSpace = BT2020) -> np.ndarray:
     """
     shape = colour.SpectralShape(400, 700, 10)
     wl = shape.wavelengths
-    d65 = colour.SDS_ILLUMINANTS["D65"].copy().align(shape).values
+    illuminant = colour.SDS_ILLUMINANTS["D65"].copy().align(shape)
+    d65 = illuminant.values
     patches = colour.SDS_COLOURCHECKERS["ColorChecker N Ohta"]
     cmfs = colour.MSDS_CMFS["CIE 1931 2 Degree Standard Observer"].copy().align(shape)
 
-    illuminant = colour.SDS_ILLUMINANTS["D65"].copy().align(shape)
     aligned = [sd.copy().align(shape) for sd in patches.values()]
     refl = np.array([sd.values for sd in aligned])
     xyz = np.array([colour.sd_to_XYZ(sd, cmfs=cmfs, illuminant=illuminant) for sd in aligned]) / 100.0
@@ -148,7 +147,7 @@ def render(linear: np.ndarray, film: ModuleType, settings: PrintSettings, m: np.
     # the plain mean lifted greens by 8 L*). Below mid-grey the luminance is stretched so the
     # film base (D-min) prints `shadow_stops` down, where a scanner puts its black point;
     # stretching the offsets too doubled the chroma of dark skin.
-    luma = x @ np.array([0.2126, 0.7152, 0.0722])
+    luma = x @ np.asarray(BT709_LUMA)
     film_base = float(tone(film, -10.0))
     stretch = settings.shadow_stops * np.log10(2) / -film_base
     stretched = np.where(luma < 0, luma * stretch, luma)

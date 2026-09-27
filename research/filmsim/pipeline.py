@@ -2,22 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
 from .cube import CubeLUT
 from .flog2 import FLOG2
-from .gamut import BT709, F_GAMUT, RGBSpace, apply_matrix, conversion_matrix
+from .gamut import F_GAMUT, RGBSpace, apply_matrix, conversion_matrix
 from .grain import add_grain
-from .hue import WARM_HUE_FILM_SIMS, x_series_warm_hue
+from .hue import x_series_warm_hue
+from .looks import FUJIFILM_FILM_SIMS, WARM_HUE_FILM_SIMS
 from .tone import tone_curve, x_series_shoulder
-
-
-# Keys `film_sim_key` gives official Fujifilm LUTs. Only these get the X-series highlight
-# shoulder (#16): it pulls the GFX LUTs towards X-series JPEGs, and a look fitted to another
-# camera's JPEGs (scripts/fit_look.py) already has that camera's highlights in the LUT.
-FUJIFILM_FILM_SIMS = ("provia", "classic_chrome", "lut")
 
 
 @dataclass
@@ -29,17 +24,11 @@ class Recipe:
     shadow: float = 0.0               # -2..+4
     grain_strength: str = "off"       # off / weak / strong
     grain_size: str = "small"         # small / large
-    extra: dict = field(default_factory=dict)
 
 
 def wb_shift_gains(r_shift: float, b_shift: float, step: float = 0.03) -> np.ndarray:
     """Fujifilm WB shift (-9..+9) -> linear RGB multipliers. Step size is a guess."""
     return np.array([1.0 + step * r_shift, 1.0, 1.0 + step * b_shift])
-
-
-def srgb_encode(x: np.ndarray) -> np.ndarray:
-    x = np.clip(x, 0.0, 1.0)
-    return np.where(x <= 0.0031308, 12.92 * x, 1.055 * np.power(x, 1 / 2.4) - 0.055)
 
 
 def render(
@@ -69,8 +58,3 @@ def render(
     out = tone_curve(out, recipe.highlight, recipe.shadow)
     out = add_grain(out, recipe.grain_strength, recipe.grain_size, seed=seed)
     return np.clip(out, 0.0, 1.0)
-
-
-def bt709_to_srgb_matrix() -> np.ndarray:
-    """Identity; kept so the call site documents the assumption explicitly."""
-    return conversion_matrix(BT709, BT709)

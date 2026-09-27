@@ -2,7 +2,7 @@
 
 設計時に決める必要があるが、まだ結論が出ていないもの。
 
-- **露出アンカー**: CIRAWFilter の線形出力で「18% グレー」がどの値になるか。F-Log2 の 0.391 に合わせるためのゲインを、RAF ペアの ΔE スイープで決める（`compare_raf.py --sweep-ev`）。富士の撮って出し 15 組（Provia 7 組：X100VI、X-T5。Classic Chrome 8 組：X-H1、X-Pro2、X-T50、X-Pro3、GFX 50S II）では、ハイライトの肩の補正（#16）を入れた状態で、LibRaw の線形出力に対して DR100 は +1.00〜+1.25 EV、DR200 は +1.88〜+2.12 EV（DR200 はカメラが 1 段暗く撮る分）。機種やフィルムシミュレーションが違っても同じアンカーに揃う。ΔE 中央値は Provia で 2.2〜2.7、Classic Chrome で 1.3〜4.8。LibRaw 基準の値なので iPhone の CIRAWFilter にはそのまま使えない
+- **露出アンカー**: CIRAWFilter の線形出力で「18% グレー」がどの値になるか。F-Log2 の 0.391 に合わせるためのゲインを、RAF ペアの ΔE スイープで決める（`compare_raf.py --sweep-ev`）。富士の撮って出し 26 組（Provia 7 組：X100VI、X-T5。Classic Chrome 19 組：X-H1、X-Pro2、X-T50、X-Pro3、GFX 50S II、X-T2）では、ハイライトの肩の補正（#16）を入れた状態で、LibRaw の線形出力に対して DR100 は +1.00〜+1.25 EV、DR200 は +1.88〜+2.12 EV（DR200 はカメラが 1 段暗く撮る分）。拡張感度（X-T2 の ISO 100。ベース感度は 200）では 0.00〜+0.12 EV で、DR100 より 1 段低い。カメラが RAW を 1 段明るく撮り、JPEG で 1 段落とす分とみられる（#12）。機種やフィルムシミュレーションが違っても同じアンカーに揃う。ΔE 中央値は Provia で 2.2〜2.7、Classic Chrome で 1.3〜6.5。LibRaw 基準の値なので iPhone の CIRAWFilter にはそのまま使えない
 - **ハイライトの余裕**: F-Log2 は 18% から +8 段以上を想定するが、iPhone は少ない。iPhone 15 Pro Max のセンサーは、DNG の白レベル 4095 の 85.6%（生の値で約 3580）で飽和する。自動露出が置く中間グレーから、緑は 2.3〜4 段で飽和する。赤と青にはさらに約 1.3 段残っていて、それは CIRAWFilter の EDR 1 で使うことにした（DESIGN.md、#24）。完全に飽和した部分の出し方（今は CIRAWFilter の推定に任せている）は、昼の屋外でも確かめる
 - **CIRAWFilter のノイズ除去とシャープ**: Apple のデフォルトはフジより強い。`luminanceNoiseReductionAmount` 等をどこに固定するか
 - **48MP ProRAW への切り替え**: 入力は 12MP の Bayer RAW に決めた（DESIGN.md「入力形式」）。35mm 相当に切り出すと約 5MP になる。48MP の RAW は ProRAW だけ（iPhone 15 Pro Max、#5）

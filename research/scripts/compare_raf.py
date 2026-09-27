@@ -6,6 +6,10 @@ Example:
         --lut luts/official/FLog2_to_PROVIA_65grid_V.1.00.cube --sweep-ev -2 2 0.25
 
 The EV sweep is how the exposure anchor gets decided (docs/OPEN_QUESTIONS.md).
+
+--engine ciraw linearises with CIRAWFilter (the iOS app's engine, macOS only)
+instead of LibRaw. CIRAWFilter applies the file's baseline exposure, so its best
+EV differs from LibRaw's.
 """
 
 from __future__ import annotations
@@ -15,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from filmsim import CubeLUT, Recipe, render
+from filmsim import F_GAMUT, P3_D65, CubeLUT, Recipe, render
 from filmsim.metrics import delta_e_breakdown, delta_e_stats
 from filmsim.rawio import crop_center, load_raw_linear, load_srgb, resize_linear, resize_to, save_srgb
 
@@ -32,13 +36,20 @@ def main() -> None:
     ap.add_argument("--ev", type=float, default=0.0)
     ap.add_argument("--sweep-ev", nargs=3, type=float, metavar=("START", "STOP", "STEP"))
     ap.add_argument("--out", type=Path, help="directory for side-by-side PNGs")
+    ap.add_argument("--engine", choices=["libraw", "ciraw"], default="libraw", help="RAW linearisation")
     ap.add_argument("--breakdown", action="store_true", help="split ΔE at the best EV by lightness and hue")
     args = ap.parse_args()
 
     lut = CubeLUT.load(args.lut)
     ref = load_srgb(args.jpeg)
     h, w = ref.shape[:2]
-    linear = crop_center(load_raw_linear(args.raf), h, w)
+    if args.engine == "ciraw":
+        from filmsim.ciraw import load_raw_linear_ciraw
+
+        raw_linear, space = load_raw_linear_ciraw(args.raf)[0], P3_D65
+    else:
+        raw_linear, space = load_raw_linear(args.raf), F_GAMUT
+    linear = crop_center(raw_linear, h, w)
     size = (COMPARE_WIDTH, round(COMPARE_WIDTH * h / w))
     linear_small = resize_linear(linear, size)
     ref_small = resize_to(ref, size)
@@ -50,7 +61,7 @@ def main() -> None:
 
     best = None
     for ev in evs:
-        out_small = render(linear_small, Recipe(film_sim="lut", exposure_ev=ev), {"lut": lut})
+        out_small = render(linear_small, Recipe(film_sim="lut", exposure_ev=ev), {"lut": lut}, input_space=space)
         stats = delta_e_stats(out_small, ref_small)
         print(f"ev={ev:+.2f}  " + "  ".join(f"{k}={v:.2f}" for k, v in stats.items()))
         if best is None or stats["median"] < best[1]["median"]:

@@ -16,7 +16,8 @@ final class CameraController: NSObject, ObservableObject {
     /// Aspect-fill zoom so the portrait 2:3 preview matches the 35mm crop. 4:3 until the format is known.
     @Published var previewZoom: CGFloat = PreviewFraming.defaultZoom
     /// Capture-time exposure compensation in EV (`ExposureCompensation`), separate from the recipe's.
-    @Published var exposureBias: Float = 0
+    /// Stored under `ExposureCompensation.storageKey`, which the settings screen also writes.
+    @Published private(set) var exposureBias = Float(UserDefaults.standard.double(forKey: ExposureCompensation.storageKey))
     /// Set by a long press on the preview; cleared by the next tap.
     @Published var isAEAFLocked = false
     private var subjectAreaObserver: NSObjectProtocol?
@@ -34,6 +35,8 @@ final class CameraController: NSObject, ObservableObject {
         }
         // `.task` runs again each time the Camera tab reappears; configure the session only once.
         guard device == nil else {
+            // The settings screen may have changed the stored value while this tab was away.
+            applyStoredExposureBias()
             Task.detached { [session] in if !session.isRunning { session.startRunning() } }
             return
         }
@@ -87,6 +90,7 @@ final class CameraController: NSObject, ObservableObject {
         }
         output.maxPhotoQualityPrioritization = .quality
         session.commitConfiguration()
+        applyStoredExposureBias()
 
         // Raw formats are valid only after the configuration is committed.
         if let dims = photoDims {
@@ -105,17 +109,27 @@ final class CameraController: NSObject, ObservableObject {
 
     /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.
     func stepExposureBias(by steps: Int) {
+        setExposureBias(exposureBias, steps: steps)
+    }
+
+    private func applyStoredExposureBias() {
+        setExposureBias(Float(UserDefaults.standard.double(forKey: ExposureCompensation.storageKey)), steps: 0)
+    }
+
+    /// Snaps `ev + steps` thirds to the grid and the device range, sets it on the device and stores it.
+    private func setExposureBias(_ ev: Float, steps: Int) {
         guard let device else { return }
-        let ev = ExposureCompensation.stepped(
-            exposureBias,
+        let target = ExposureCompensation.stepped(
+            ev,
             by: steps,
             deviceRange: device.minExposureTargetBias...device.maxExposureTargetBias
         )
         do {
             try device.lockForConfiguration()
-            device.setExposureTargetBias(ev, completionHandler: nil)
+            device.setExposureTargetBias(target, completionHandler: nil)
             device.unlockForConfiguration()
-            exposureBias = ev
+            exposureBias = target
+            UserDefaults.standard.set(Double(target), forKey: ExposureCompensation.storageKey)
         } catch {
             status = "露出補正を変えられません: \(error.localizedDescription)"
         }

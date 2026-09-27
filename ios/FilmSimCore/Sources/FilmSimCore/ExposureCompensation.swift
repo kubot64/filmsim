@@ -5,6 +5,8 @@ import Foundation
 /// keeps highlights that would otherwise clip (OPEN_QUESTIONS "ハイライトの余裕").
 /// 1/3 EV steps up to ±3, like the X100 dial.
 public enum ExposureCompensation {
+    /// UserDefaults entry, shared by the camera and settings screens. Kept across launches.
+    public static let storageKey = "captureExposureBias"
     public static let stepsPerEV = 3
     public static let limitEV: Float = 3
 

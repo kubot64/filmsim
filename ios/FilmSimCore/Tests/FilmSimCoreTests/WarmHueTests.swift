@@ -27,5 +27,12 @@ final class WarmHueTests: XCTestCase {
     func testOnlyProvia() {
         XCTAssertTrue(WarmHue.applies(to: .provia))
         XCTAssertFalse(WarmHue.applies(to: .classicChrome))
+        XCTAssertFalse(WarmHue.applies(to: .portra400vc))
+    }
+
+    func testShoulderIsForFujifilmLooksOnly() {
+        XCTAssertTrue(FilmSimulation.provia.usesXSeriesShoulder)
+        XCTAssertTrue(FilmSimulation.classicChrome.usesXSeriesShoulder)
+        XCTAssertFalse(FilmSimulation.portra400vc.usesXSeriesShoulder)
     }
 }

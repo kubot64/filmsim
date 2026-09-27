@@ -4,7 +4,7 @@ import Foundation
 
 /// Core Image chain mirroring research/filmsim/pipeline.py.
 ///
-/// linear P3 → WB and exposure → P3→F-Gamut → F-Log2 → official LUT → highlight shoulder → tone → grain.
+/// linear P3 → WB and exposure → P3→F-Gamut → F-Log2 → official LUT → highlight shoulder → warm hue (Provia) → tone → grain.
 /// The LUT is indexed by the F-Log2 code values themselves (`CIColorCube`, no color-space
 /// conversion). Its output is BT.709-gamma codes; the caller tags them as sRGB and does
 /// not convert again.
@@ -12,6 +12,7 @@ public struct Pipeline {
     public struct Kernels {
         public let flog2: CIColorKernel
         public let shoulder: CIColorKernel
+        public let warmHue: CIColorKernel
         public let tone: CIColorKernel
         public let grain: CIColorKernel
 
@@ -25,6 +26,7 @@ public struct Pipeline {
             return Kernels(
                 flog2: try CIColorKernel(functionName: "flog2Encode", fromMetalLibraryData: data),
                 shoulder: try CIColorKernel(functionName: "xSeriesShoulder", fromMetalLibraryData: data),
+                warmHue: try CIColorKernel(functionName: "xSeriesWarmHue", fromMetalLibraryData: data),
                 tone: try CIColorKernel(functionName: "toneCurve", fromMetalLibraryData: data),
                 grain: try CIColorKernel(functionName: "grainApply", fromMetalLibraryData: data)
             )
@@ -60,6 +62,9 @@ public struct Pipeline {
         guard var out = cube.outputImage else { return nil }
 
         out = HighlightShoulder.apply(to: out, kernel: kernels.shoulder)
+        if WarmHue.applies(to: recipe.filmSimulation) {
+            out = WarmHue.apply(to: out, kernel: kernels.warmHue)
+        }
         out = ToneCurve.apply(to: out, highlight: recipe.highlight, shadow: recipe.shadow, kernel: kernels.tone)
         out = Grain.apply(
             to: out,

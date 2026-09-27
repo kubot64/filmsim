@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from filmsim import F_GAMUT, P3_D65, CubeLUT, Recipe, render
+from filmsim.cube import film_sim_key
 from filmsim.metrics import delta_e_breakdown, delta_e_stats
 from filmsim.rawio import crop_center, load_raw_linear, load_srgb, resize_linear, resize_to, save_srgb
 
@@ -41,6 +42,7 @@ def main() -> None:
     args = ap.parse_args()
 
     lut = CubeLUT.load(args.lut)
+    sim = film_sim_key(args.lut)
     ref = load_srgb(args.jpeg)
     h, w = ref.shape[:2]
     if args.engine == "ciraw":
@@ -61,7 +63,7 @@ def main() -> None:
 
     best = None
     for ev in evs:
-        out_small = render(linear_small, Recipe(film_sim="lut", exposure_ev=ev), {"lut": lut}, input_space=space)
+        out_small = render(linear_small, Recipe(film_sim=sim, exposure_ev=ev), {sim: lut}, input_space=space)
         stats = delta_e_stats(out_small, ref_small)
         print(f"ev={ev:+.2f}  " + "  ".join(f"{k}={v:.2f}" for k, v in stats.items()))
         if best is None or stats["median"] < best[1]["median"]:

@@ -11,6 +11,10 @@ final class LUTLibrary: ObservableObject {
     static let cubeType = UTType(filenameExtension: "cube", conformingTo: .data) ?? .data
 
     @Published private(set) var names: [String] = []
+    /// Names the user gave the imports, kept across launches.
+    @Published private(set) var displayNames = LUTDisplayNames.decoded(
+        from: UserDefaults.standard.data(forKey: LUTDisplayNames.storageKey) ?? Data()
+    )
 
     private let folder: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -62,7 +66,20 @@ final class LUTLibrary: ObservableObject {
         return report
     }
 
+    /// The label shown in the pickers and the list.
+    func displayName(for name: String) -> String {
+        displayNames.displayName(for: name)
+    }
+
+    /// Only the label changes; recipes keep the stored name, so the chosen look stays chosen.
+    func rename(_ name: String, to newName: String) {
+        displayNames.rename(name, to: newName)
+        UserDefaults.standard.set(displayNames.encoded, forKey: LUTDisplayNames.storageKey)
+    }
+
     func delete(_ name: String) {
+        displayNames.remove(name)
+        UserDefaults.standard.set(displayNames.encoded, forKey: LUTDisplayNames.storageKey)
         try? FileManager.default.removeItem(at: fileURL(for: name))
         refresh()
         Developer.shared.reloadImportedLUTs()

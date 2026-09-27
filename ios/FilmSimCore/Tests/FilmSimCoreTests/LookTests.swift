@@ -71,3 +71,30 @@ final class LookTests: XCTestCase {
         XCTAssertEqual(r.effectiveLook(importedNames: ["FLog2_to_PROVIA_x"]), .imported("FLog2_to_PROVIA_x"))
     }
 }
+
+final class LUTDisplayNamesTests: XCTestCase {
+    func testRenameIsRememberedAndBlankGoesBackToTheFileName() {
+        var names = LUTDisplayNames()
+        XCTAssertEqual(names.displayName(for: "FLog2_to_PROVIA_65grid_V.1.00"), "FLog2_to_PROVIA_65grid_V.1.00")
+        names.rename("FLog2_to_PROVIA_65grid_V.1.00", to: "  いつもの  ")
+        XCTAssertEqual(names.displayName(for: "FLog2_to_PROVIA_65grid_V.1.00"), "いつもの")
+
+        let restored = LUTDisplayNames.decoded(from: names.encoded)
+        XCTAssertEqual(restored.displayName(for: "FLog2_to_PROVIA_65grid_V.1.00"), "いつもの")
+
+        names.rename("FLog2_to_PROVIA_65grid_V.1.00", to: " ")
+        XCTAssertEqual(names.displayName(for: "FLog2_to_PROVIA_65grid_V.1.00"), "FLog2_to_PROVIA_65grid_V.1.00")
+        XCTAssertTrue(names.names.isEmpty)
+    }
+
+    func testRemoveForgetsTheName() {
+        var names = LUTDisplayNames()
+        names.rename("a", to: "A")
+        names.remove("a")
+        XCTAssertEqual(names.displayName(for: "a"), "a")
+    }
+
+    func testBrokenDataStartsEmpty() {
+        XCTAssertEqual(LUTDisplayNames.decoded(from: Data("x".utf8)), LUTDisplayNames())
+    }
+}

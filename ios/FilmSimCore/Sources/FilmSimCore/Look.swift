@@ -92,3 +92,37 @@ public struct ResolvedLook {
         )
     }
 }
+
+/// Names users give their imported LUTs, keyed by the stored name (`ImportedLUT.name`). Only the
+/// label changes: recipes keep the stored name, so renaming never deselects a look.
+/// Kept in UserDefaults under `storageKey`.
+public struct LUTDisplayNames: Codable, Equatable, Sendable {
+    public static let storageKey = "importedLUTDisplayNames"
+
+    public private(set) var names: [String: String] = [:]
+
+    public init() {}
+
+    /// The user's name, or the stored name when there is none.
+    public func displayName(for name: String) -> String {
+        names[name] ?? name
+    }
+
+    /// A blank name, or the stored name itself, clears the user's name.
+    public mutating func rename(_ name: String, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        names[name] = trimmed.isEmpty || trimmed == name ? nil : trimmed
+    }
+
+    public mutating func remove(_ name: String) {
+        names[name] = nil
+    }
+
+    public var encoded: Data {
+        (try? JSONEncoder().encode(self)) ?? Data()
+    }
+
+    public static func decoded(from data: Data) -> LUTDisplayNames {
+        (try? JSONDecoder().decode(LUTDisplayNames.self, from: data)) ?? LUTDisplayNames()
+    }
+}

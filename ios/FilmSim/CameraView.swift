@@ -78,7 +78,7 @@ struct CameraView: View {
         Menu {
             LookPicker(title: "Look", selection: look)
         } label: {
-            Label(recipe.effectiveLook(importedNames: library.names).displayName, systemImage: "camera.filters")
+            Label(library.title(for: recipe.effectiveLook(importedNames: library.names)), systemImage: "camera.filters")
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)

@@ -22,6 +22,9 @@ struct SettingsView: View {
     @ObservedObject private var library = LUTLibrary.shared
     @State private var isImporting = false
     @State private var importMessage: String?
+    /// The import being renamed, and the text field's contents.
+    @State private var renaming: String?
+    @State private var newName = ""
     @State private var rawSupport: [CameraRawSupport]?
     @State private var isSurveying = false
 
@@ -123,7 +126,17 @@ struct SettingsView: View {
         Section {
             Button("LUT を読み込む…") { isImporting = true }
             ForEach(library.names, id: \.self) { name in
-                Text(name)
+                Button {
+                    newName = library.displayName(for: name)
+                    renaming = name
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(library.displayName(for: name)).foregroundStyle(.primary)
+                        if library.displayName(for: name) != name {
+                            Text(name).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             .onDelete { offsets in
                 // Take the names first: each delete refreshes the list and shifts the offsets.
@@ -145,6 +158,16 @@ struct SettingsView: View {
             case .failure(let error):
                 importMessage = error.localizedDescription
             }
+        }
+        .alert("名前を変える", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField("名前", text: $newName)
+            Button("保存") {
+                if let renaming { library.rename(renaming, to: newName) }
+                renaming = nil
+            }
+            Button("キャンセル", role: .cancel) { renaming = nil }
+        } message: {
+            Text("空にすると、ファイル名に戻ります。")
         }
     }
 }

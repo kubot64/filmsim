@@ -9,13 +9,19 @@ enum PhotoSessionBuilder {
         let dimensionList: String
     }
 
+    /// `Result`'s failure must be `Error`; Japanese status strings stay plain `String` here.
+    enum Outcome {
+        case success(Configured)
+        case failure(String)
+    }
+
     /// Adds a photo input/output for `device`, disables ProRAW listing noise, and sets the
     /// largest photo dimensions. Commits the configuration.
     static func configurePhotoSession(
         _ session: AVCaptureSession,
         device: AVCaptureDevice,
         output: AVCapturePhotoOutput
-    ) -> Result<Configured, String> {
+    ) -> Outcome {
         let input: AVCaptureDeviceInput
         do {
             input = try AVCaptureDeviceInput(device: device)

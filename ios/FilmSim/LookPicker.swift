@@ -13,15 +13,6 @@ struct LookPicker: View {
                 Text(sim.displayName).tag(Look.builtIn(sim))
             }
 
-extension LUTLibrary {
-    /// A look's label: built-ins by their generic name, imports by the name the user gave them.
-    func title(for look: Look) -> String {
-        switch look {
-        case .builtIn(let sim): return sim.displayName
-        case .imported(let name): return displayName(for: name)
-        }
-    }
-}
             if !library.names.isEmpty {
                 Section("読み込んだ LUT") {
                     ForEach(library.names, id: \.self) { name in
@@ -29,6 +20,16 @@ extension LUTLibrary {
                     }
                 }
             }
+        }
+    }
+}
+
+extension LUTLibrary {
+    /// A look's label: built-ins by their generic name, imports by the name the user gave them.
+    func title(for look: Look) -> String {
+        switch look {
+        case .builtIn(let sim): return sim.displayName
+        case .imported(let name): return displayName(for: name)
         }
     }
 }

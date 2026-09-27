@@ -77,3 +77,16 @@ class CubeLUT:
         c0 = c00 * (1 - fg) + c10 * fg
         c1 = c01 * (1 - fg) + c11 * fg
         return c0 * (1 - fb) + c1 * fb
+
+
+def film_sim_key(path: str | Path) -> str:
+    """Recipe.film_sim for an official LUT file, so render() applies per-simulation fixes.
+
+    Unknown files map to "lut", which gets no film-simulation-specific correction.
+    """
+    name = Path(path).name.upper()
+    if "PROVIA" in name:
+        return "provia"
+    if "CLASSIC-CHROME" in name:
+        return "classic_chrome"
+    return "lut"

@@ -12,6 +12,7 @@ import argparse
 from pathlib import Path
 
 from filmsim import CubeLUT, Recipe, render
+from filmsim.cube import film_sim_key
 from filmsim.rawio import load_raw_linear, save_srgb
 
 
@@ -29,7 +30,7 @@ def main() -> None:
     args = ap.parse_args()
 
     recipe = Recipe(
-        film_sim="lut",
+        film_sim=film_sim_key(args.lut),
         exposure_ev=args.ev,
         wb_shift=tuple(args.wb),
         highlight=args.highlight,
@@ -37,7 +38,7 @@ def main() -> None:
         grain_strength=args.grain,
         grain_size=args.grain_size,
     )
-    out = render(load_raw_linear(args.raw), recipe, {"lut": CubeLUT.load(args.lut)})
+    out = render(load_raw_linear(args.raw), recipe, {recipe.film_sim: CubeLUT.load(args.lut)})
     args.out.parent.mkdir(parents=True, exist_ok=True)
     save_srgb(args.out, out)
     print(f"wrote {args.out}")

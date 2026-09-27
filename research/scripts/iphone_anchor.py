@@ -23,6 +23,7 @@ import rawpy
 from PIL import Image, ImageDraw
 
 from filmsim import BT2020, P3_D65, CubeLUT, Recipe, render
+from filmsim.cube import film_sim_key
 from filmsim.ciraw import load_raw_linear_ciraw
 from filmsim.anchor import MIDDLE_GREY, center_region, headroom_stops, luminance, metered_anchor_ev
 from filmsim.rawio import load_raw_linear, resize_linear
@@ -59,8 +60,9 @@ def main() -> None:
     ap.add_argument("--libraw", action="store_true", help="also print the centre ratio against LibRaw")
     args = ap.parse_args()
 
-    luts = {"lut": CubeLUT.load(args.lut)}
-    grey = render(np.full((1, 1, 3), MIDDLE_GREY), Recipe(film_sim="lut"), luts, input_space=P3_D65)[0, 0, 0]
+    sim = film_sim_key(args.lut)
+    luts = {sim: CubeLUT.load(args.lut)}
+    grey = render(np.full((1, 1, 3), MIDDLE_GREY), Recipe(film_sim=sim), luts, input_space=P3_D65)[0, 0, 0]
     print(f"reference: linear {MIDDLE_GREY:.0%} renders to sRGB {grey * 255:.0f}")
 
     rows = []
@@ -84,7 +86,7 @@ def main() -> None:
         small = resize_linear(linear, size)
         row = []
         for ev in args.ev:
-            out = render(small, Recipe(film_sim="lut", exposure_ev=ev), luts, input_space=P3_D65)
+            out = render(small, Recipe(film_sim=sim, exposure_ev=ev), luts, input_space=P3_D65)
             centre = np.median(center_region(out).reshape(-1, 3), axis=0) * 255
             print(f"    ev {ev:+.2f}: centre sRGB {centre[0]:.0f},{centre[1]:.0f},{centre[2]:.0f}")
             row.append(label(Image.fromarray((out * 255 + 0.5).astype(np.uint8)), f"{path.stem}  EV {ev:+.2f}"))

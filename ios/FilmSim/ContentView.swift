@@ -19,6 +19,8 @@ struct SettingsView: View {
     @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
     @AppStorage(ExposureCompensation.storageKey) private var exposureBias = 0.0
     @AppStorage(FocalLength.storageKey) private var focalLength = FocalLength.default
+    @State private var rawSupport: [CameraRawSupport]?
+    @State private var isSurveying = false
 
     var body: some View {
         NavigationStack {
@@ -50,8 +52,47 @@ struct SettingsView: View {
                     Text("開発中はオン。パイプラインが安定したらオフにする。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                rawSupportSection
             }
             .navigationTitle("Settings")
+        }
+    }
+
+    /// Development check: which cameras give Bayer RAW / ProRAW (`CameraSurvey`).
+    private var rawSupportSection: some View {
+        Section {
+            Button(isSurveying ? "調べています…" : "調べる") {
+                isSurveying = true
+                Task {
+                    rawSupport = await CameraSurvey.run()
+                    isSurveying = false
+                }
+            }
+            .disabled(isSurveying)
+            if let rawSupport {
+                if rawSupport.isEmpty {
+                    Text("カメラが見つかりません")
+                }
+                ForEach(rawSupport) { camera in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(camera.name)
+                        if let error = camera.error {
+                            Text(error).font(.footnote).foregroundStyle(.red)
+                        } else {
+                            Text("Bayer RAW \(camera.bayerRAW ? "○" : "×")　ProRAW \(camera.proRAW ? "○" : "×")")
+                                .font(.footnote.monospaced())
+                            if !camera.maxPhotoSize.isEmpty {
+                                Text("写真の最大 \(camera.maxPhotoSize)")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("カメラの RAW 対応（開発用）")
+        } footer: {
+            Text("インカメラや超広角・望遠で RAW が撮れるかを調べる。撮影には影響しない。")
         }
     }
 

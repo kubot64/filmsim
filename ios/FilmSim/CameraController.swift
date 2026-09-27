@@ -15,8 +15,16 @@ final class CameraController: NSObject, ObservableObject {
     @Published var status = "起動中…"
     /// Aspect-fill zoom so the portrait 2:3 preview matches the 35mm crop. 4:3 until the format is known.
     @Published var previewZoom: CGFloat = PreviewFraming.defaultZoom
+    /// Capture-time exposure compensation in EV (`ExposureCompensation`), separate from the recipe's.
+    /// Stored under `ExposureCompensation.storageKey`, which the settings screen also writes.
+    @Published private(set) var exposureBias = Float(UserDefaults.standard.double(forKey: ExposureCompensation.storageKey))
+    /// Set by a long press on the preview; cleared by the next tap.
+    @Published var isAEAFLocked = false
+    private var subjectAreaObserver: NSObjectProtocol?
 
     struct PendingCapture {
+        /// The recipe when the shutter was pressed; a later change applies to the next shot.
+        let recipe: Recipe
         var rawData: Data?
         var processedData: Data?
     }
@@ -27,6 +35,8 @@ final class CameraController: NSObject, ObservableObject {
         }
         // `.task` runs again each time the Camera tab reappears; configure the session only once.
         guard device == nil else {
+            // The settings screen may have changed the stored value while this tab was away.
+            applyStoredExposureBias()
             Task.detached { [session] in if !session.isRunning { session.startRunning() } }
             return
         }
@@ -48,6 +58,11 @@ final class CameraController: NSObject, ObservableObject {
             status = "写真出力を追加できません"; session.commitConfiguration(); return
         }
         self.device = device
+        subjectAreaObserver = NotificationCenter.default.addObserver(
+            forName: AVCaptureDevice.subjectAreaDidChangeNotification, object: device, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.resumeContinuousFocusAndExposure() }
+        }
         session.addInput(input)
         session.addOutput(output)
         if output.isAppleProRAWSupported {
@@ -75,6 +90,7 @@ final class CameraController: NSObject, ObservableObject {
         }
         output.maxPhotoQualityPrioritization = .quality
         session.commitConfiguration()
+        applyStoredExposureBias()
 
         // Raw formats are valid only after the configuration is committed.
         if let dims = photoDims {
@@ -91,7 +107,80 @@ final class CameraController: NSObject, ObservableObject {
         Task.detached { [session] in session.startRunning() }
     }
 
-    func capture() {
+    /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.
+    func stepExposureBias(by steps: Int) {
+        setExposureBias(exposureBias, steps: steps)
+    }
+
+    private func applyStoredExposureBias() {
+        setExposureBias(Float(UserDefaults.standard.double(forKey: ExposureCompensation.storageKey)), steps: 0)
+    }
+
+    /// Snaps `ev + steps` thirds to the grid and the device range, sets it on the device and stores it.
+    private func setExposureBias(_ ev: Float, steps: Int) {
+        guard let device else { return }
+        let target = ExposureCompensation.stepped(
+            ev,
+            by: steps,
+            deviceRange: device.minExposureTargetBias...device.maxExposureTargetBias
+        )
+        do {
+            try device.lockForConfiguration()
+            device.setExposureTargetBias(target, completionHandler: nil)
+            device.unlockForConfiguration()
+            exposureBias = target
+            UserDefaults.standard.set(Double(target), forKey: ExposureCompensation.storageKey)
+        } catch {
+            status = "露出補正を変えられません: \(error.localizedDescription)"
+        }
+    }
+
+    /// `devicePoint` is in the device's normalized space (0...1, sensor orientation).
+    /// `.autoFocus` and `.autoExpose` measure once at the point and then hold. A tap goes back
+    /// to continuous auto when the scene changes; a long press (`lock`) holds until the next tap.
+    /// The exposure compensation still applies while exposure is held.
+    func focusAndExpose(at devicePoint: CGPoint, lock: Bool) {
+        guard let device else { return }
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
+                device.focusPointOfInterest = devicePoint
+                device.focusMode = .autoFocus
+            }
+            if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.autoExpose) {
+                device.exposurePointOfInterest = devicePoint
+                device.exposureMode = .autoExpose
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = !lock
+            device.unlockForConfiguration()
+            isAEAFLocked = lock
+        } catch {
+            status = "ピントと露出を合わせられません: \(error.localizedDescription)"
+        }
+    }
+
+    /// After a tap, the scene changed: back to continuous auto on the frame center.
+    private func resumeContinuousFocusAndExposure() {
+        guard let device, !isAEAFLocked else { return }
+        let center = CGPoint(x: 0.5, y: 0.5)
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusPointOfInterest = center
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposurePointOfInterest = center
+                device.exposureMode = .continuousAutoExposure
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = false
+            device.unlockForConfiguration()
+        } catch {
+            status = "ピントと露出を自動に戻せません: \(error.localizedDescription)"
+        }
+    }
+
+    func capture(recipe: Recipe) {
         // Bayer RAW (not ProRAW): works on non-Pro models too.
         guard let rawType = output.availableRawPhotoPixelFormatTypes.first(where: { AVCapturePhotoOutput.isBayerRAWPixelFormat($0) }) else {
             status = "Bayer RAW のピクセルフォーマットがありません"; return
@@ -99,7 +188,7 @@ final class CameraController: NSObject, ObservableObject {
         let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
         settings.maxPhotoDimensions = output.maxPhotoDimensions
         // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
-        inflight[settings.uniqueID] = PendingCapture()
+        inflight[settings.uniqueID] = PendingCapture(recipe: recipe)
         output.capturePhoto(with: settings, delegate: self)
     }
 }
@@ -123,7 +212,8 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             guard let raw = pending.rawData else { self.status = "RAW データが返りませんでした"; return }
             let saved = await Developer.shared.developAndSave(
                 rawData: raw,
-                saveDNG: UserDefaults.standard.bool(forKey: "saveDNG")
+                saveDNG: UserDefaults.standard.bool(forKey: "saveDNG"),
+                recipe: pending.recipe
             )
             self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
         }
@@ -134,16 +224,20 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
     var zoom: CGFloat
+    /// Device point (normalized, sensor orientation) and whether it was a long press (AE/AF lock).
+    var onFocus: (CGPoint, Bool) -> Void
 
     func makeUIView(context: Context) -> PreviewView {
         let v = PreviewView()
         v.videoPreviewLayer.session = session
         v.zoom = zoom
+        v.onFocus = onFocus
         return v
     }
 
     func updateUIView(_ uiView: PreviewView, context: Context) {
         uiView.zoom = zoom
+        uiView.onFocus = onFocus
         uiView.setNeedsLayout()
     }
 
@@ -152,15 +246,54 @@ struct CameraPreview: UIViewRepresentable {
     final class PreviewView: UIView {
         let videoPreviewLayer = AVCaptureVideoPreviewLayer()
         var zoom: CGFloat = PreviewFraming.defaultZoom
+        var onFocus: ((CGPoint, Bool) -> Void)?
+        /// Square drawn where the user tapped. Fades after a tap, stays while locked.
+        private let focusMark = UIView(frame: CGRect(x: 0, y: 0, width: 72, height: 72))
 
         override init(frame: CGRect) {
             super.init(frame: frame)
             clipsToBounds = true
             videoPreviewLayer.videoGravity = .resizeAspectFill
             layer.addSublayer(videoPreviewLayer)
+
+            focusMark.layer.borderColor = UIColor.systemYellow.cgColor
+            focusMark.layer.borderWidth = 1.5
+            focusMark.isUserInteractionEnabled = false
+            focusMark.alpha = 0
+            addSubview(focusMark)
+
+            let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
+            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+            tap.require(toFail: longPress)
+            addGestureRecognizer(longPress)
+            addGestureRecognizer(tap)
         }
 
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        @objc private func handleTap(_ g: UITapGestureRecognizer) {
+            focus(at: g.location(in: self), lock: false)
+        }
+
+        @objc private func handleLongPress(_ g: UILongPressGestureRecognizer) {
+            guard g.state == .began else { return }
+            focus(at: g.location(in: self), lock: true)
+        }
+
+        /// The preview layer is larger than the view and rotated, so convert through the layer:
+        /// it accounts for the zoom offset, aspect fill and the 90° rotation.
+        private func focus(at viewPoint: CGPoint, lock: Bool) {
+            let layerPoint = videoPreviewLayer.convert(viewPoint, from: layer)
+            onFocus?(videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: layerPoint), lock)
+
+            focusMark.layer.removeAllAnimations()
+            focusMark.center = viewPoint
+            focusMark.alpha = 1
+            focusMark.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
+            UIView.animate(withDuration: 0.2) { self.focusMark.transform = .identity }
+            guard !lock else { return }
+            UIView.animate(withDuration: 0.3, delay: 1.0, options: []) { self.focusMark.alpha = 0 }
+        }
 
         override func layoutSubviews() {
             super.layoutSubviews()

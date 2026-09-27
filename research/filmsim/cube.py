@@ -55,6 +55,18 @@ class CubeLUT:
         table = data.reshape(size, size, size, 3).transpose(2, 1, 0, 3)
         return cls(size, table, dmin, dmax, title)
 
+    def save(self, path: str | Path) -> None:
+        """Write a .cube that `load` (and the app's CubeLUT.swift) reads back."""
+        rows = self.table.transpose(2, 1, 0, 3).reshape(-1, 3)
+        lines = [
+            f'TITLE "{self.title}"',
+            f"LUT_3D_SIZE {self.size}",
+            "DOMAIN_MIN " + " ".join(f"{v:.6f}" for v in self.domain_min),
+            "DOMAIN_MAX " + " ".join(f"{v:.6f}" for v in self.domain_max),
+        ]
+        lines += [f"{r:.6f} {g:.6f} {b:.6f}" for r, g, b in rows]
+        Path(path).write_text("\n".join(lines) + "\n")
+
     def apply(self, img: np.ndarray) -> np.ndarray:
         """Trilinear interpolation on an (..., 3) float image in [domain_min, domain_max]."""
         n = self.size
@@ -82,9 +94,13 @@ class CubeLUT:
 def film_sim_key(path: str | Path) -> str:
     """Recipe.film_sim for an official LUT file, so render() applies per-simulation fixes.
 
-    Unknown files map to "lut", which gets no film-simulation-specific correction.
+    Other official files (named "FLog2_to_...") map to "lut", which gets only the fixes
+    every Fujifilm LUT gets. Anything else, such as a LUT from scripts/fit_look.py, maps
+    to "fitted" and gets none of them.
     """
     name = Path(path).name.upper()
+    if not name.startswith("FLOG2_TO_"):
+        return "fitted"
     if "PROVIA" in name:
         return "provia"
     if "CLASSIC-CHROME" in name:

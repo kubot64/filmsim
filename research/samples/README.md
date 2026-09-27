@@ -10,6 +10,14 @@
 
 このディレクトリの中身は git 管理外。
 
+## Leica の DNG と JPEG（Leica Standard の LUT）
+
+- DPReview のサンプルギャラリー（Leica Q3、M11 など）に DNG と JPEG が揃っている
+- JPEG の仕上がり設定が Standard のものだけを使う。`exiftool -a -G1 -s L1000123.JPG | grep -i -e film -e style -e saturation -e contrast` で確認する（タグ名は機種で違う）
+- `samples/leica/` に `L1000123.DNG` と `L1000123.JPG` のように同じ名前で置く
+- `uv run python scripts/fit_look.py samples/leica/*.DNG --title "Leica Standard" --out luts/fitted/Leica_Standard.cube`
+- 場面が偏ると、写っていない色は近くの補正を延ばしただけになる。肌、空、緑、赤い物、夜の光源など、色の違う場面を 10 組以上集めたい
+
 ## iPhone の DNG（露出アンカー、#6）
 
 - FilmSim で撮った DNG を写真アプリから AirDrop で Mac に送り、`samples/iphone/` に置く

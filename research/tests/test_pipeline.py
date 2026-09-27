@@ -43,4 +43,16 @@ def test_film_sim_key_from_official_lut_names():
 
     assert film_sim_key("luts/official/FLog2_to_PROVIA_65grid_V.1.00.cube") == "provia"
     assert film_sim_key("FLog2_to_CLASSIC-CHROME_65grid_V.1.00.cube") == "classic_chrome"
-    assert film_sim_key("my.cube") == "lut"
+    assert film_sim_key("FLog2_to_ETERNA_65grid_V.1.00.cube") == "lut"
+    assert film_sim_key("luts/fitted/Leica_Standard.cube") == "fitted"
+
+
+def test_highlight_shoulder_applies_to_fujifilm_luts_only():
+    img = np.full((2, 2, 3), 2.0)  # bright enough to land above the shoulder's 0.6 start
+    lut = CubeLUT.identity(33)
+    fuji = render(img, Recipe(film_sim="lut"), {"lut": lut})
+    fitted = render(img, Recipe(film_sim="leica_standard"), {"leica_standard": lut})
+    from filmsim.tone import x_series_shoulder
+
+    assert not np.allclose(fuji, fitted)
+    np.testing.assert_allclose(fuji, x_series_shoulder(fitted), atol=1e-12)

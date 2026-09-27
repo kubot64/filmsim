@@ -10,6 +10,15 @@ public enum ExposureCompensation {
     public static let stepsPerEV = 3
     public static let limitEV: Float = 3
 
+    /// The stored bias, or 0 when nothing is stored yet.
+    public static func stored(in defaults: UserDefaults = .standard) -> Float {
+        Float(defaults.double(forKey: storageKey))
+    }
+
+    public static func store(_ value: Float, in defaults: UserDefaults = .standard) {
+        defaults.set(Double(value), forKey: storageKey)
+    }
+
     /// Moves `current` by `steps` thirds of a stop, snapped to the 1/3 grid and clamped to
     /// ±3 and to the device's `minExposureTargetBias...maxExposureTargetBias`.
     public static func stepped(_ current: Float, by steps: Int, deviceRange: ClosedRange<Float>) -> Float {

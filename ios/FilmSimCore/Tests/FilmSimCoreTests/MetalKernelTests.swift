@@ -132,7 +132,12 @@ final class MetalKernelTests: XCTestCase {
         ]
         let k = try kernel("xSeriesShoulder")
         let input = grey(cases.map(\.0))
-        let out = render(k.apply(extent: input.extent, arguments: [input])!)
+        let args: [Any] = [
+            input,
+            NSNumber(value: Float(HighlightShoulder.knee)),
+            NSNumber(value: Float(HighlightShoulder.gamma)),
+        ]
+        let out = render(k.apply(extent: input.extent, arguments: args)!)
         for ((x, expected), got) in zip(cases, out) {
             for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected, accuracy: 2e-6, "x = \(x)") }
         }
@@ -142,7 +147,12 @@ final class MetalKernelTests: XCTestCase {
         let colours: [SIMD3<Double>] = [[0.9, 0.6, 0.5], [0.95, 0.9, 0.2], [0.3, 0.8, 1.0], [0.7, 0.7, 0.72]]
         let k = try kernel("xSeriesShoulder")
         let input = image(colours.map { SIMD3<Float>($0) })
-        let out = render(k.apply(extent: input.extent, arguments: [input])!)
+        let args: [Any] = [
+            input,
+            NSNumber(value: Float(HighlightShoulder.knee)),
+            NSNumber(value: Float(HighlightShoulder.gamma)),
+        ]
+        let out = render(k.apply(extent: input.extent, arguments: args)!)
         for (rgb, got) in zip(colours, out) {
             let expected = HighlightShoulder.evaluate(rgb)
             for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
@@ -160,7 +170,13 @@ final class MetalKernelTests: XCTestCase {
         ]
         let k = try kernel("xSeriesWarmHue")
         let input = image(cases.map { SIMD3<Float>($0.0) })
-        let out = render(k.apply(extent: input.extent, arguments: [input])!)
+        let args: [Any] = [
+            input,
+            NSNumber(value: Float(WarmHue.degrees)),
+            NSNumber(value: Float(WarmHue.center)),
+            NSNumber(value: Float(WarmHue.width)),
+        ]
+        let out = render(k.apply(extent: input.extent, arguments: args)!)
         for ((rgb, expected), got) in zip(cases, out) {
             for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
         }
@@ -174,13 +190,19 @@ final class MetalKernelTests: XCTestCase {
             for r in [0.1, 0.25] {
                 let cb = r * cos(t), cr = r * sin(t), y = 0.5
                 let red = y + 1.5748 * cr, blue = y + 1.8556 * cb
-                let green = (y - 0.2126 * red - 0.0722 * blue) / 0.7152
+                let green = (y - BT709.luma.x * red - BT709.luma.z * blue) / BT709.luma.y
                 colours.append(SIMD3(red, green, blue).clamped(lowerBound: .zero, upperBound: SIMD3(repeating: 1)))
             }
         }
         let k = try kernel("xSeriesWarmHue")
         let input = image(colours.map { SIMD3<Float>($0) })
-        let out = render(k.apply(extent: input.extent, arguments: [input])!)
+        let args: [Any] = [
+            input,
+            NSNumber(value: Float(WarmHue.degrees)),
+            NSNumber(value: Float(WarmHue.center)),
+            NSNumber(value: Float(WarmHue.width)),
+        ]
+        let out = render(k.apply(extent: input.extent, arguments: args)!)
         for (rgb, got) in zip(colours, out) {
             let expected = WarmHue.evaluate(rgb)
             for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
@@ -193,12 +215,12 @@ final class MetalKernelTests: XCTestCase {
         let k = try kernel("grainApply")
         let colours: [SIMD3<Double>] = [[0, 0, 0], [0.25, 0.25, 0.25], [0.5, 0.5, 0.5], [0.8, 0.6, 0.4], [1, 1, 1]]
         let input = image(colours.map { SIMD3<Float>($0) })
-        for (noise, amp) in [(1.0, Grain.amplitude(.strong)), (-0.7, Grain.amplitude(.weak))] {
+        for (noise, amp) in [(1.0, GrainStrength.strong.amplitude), (-0.7, GrainStrength.weak.amplitude)] {
             let noiseImage = image(Array(repeating: SIMD3(Float(noise), 0, 0), count: colours.count))
             let args: [Any] = [input, noiseImage, NSNumber(value: Float(amp))]
             let out = render(k.apply(extent: input.extent, arguments: args)!)
             for (rgb, got) in zip(colours, out) {
-                let l = (rgb * HighlightShoulder.luma).sum()
+                let l = (rgb * BT709.luma).sum()
                 let delta = noise * Grain.weight(luminance: l) * amp
                 for c in 0..<3 {
                     let expected = min(max(rgb[c] + delta, 0), 1)

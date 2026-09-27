@@ -12,7 +12,7 @@ import argparse
 from pathlib import Path
 
 from filmsim import CubeLUT, Recipe, render
-from filmsim.cube import film_sim_key
+from filmsim.looks import film_sim_key
 from filmsim.rawio import load_raw_linear, save_srgb
 
 

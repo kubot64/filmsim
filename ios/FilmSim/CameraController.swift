@@ -19,13 +19,10 @@ final class CameraController: NSObject, ObservableObject {
     /// Format width/height of the active camera. 4:3 until the format is known.
     private var sensorAspect = PreviewFraming.defaultSensorAspect
     /// Aspect-fill zoom so the portrait 2:3 preview matches the focal-length crop.
-    @Published private(set) var previewZoom = CGFloat(PreviewFraming.zoom(
-        sensorAspectWidthOverHeight: PreviewFraming.defaultSensorAspect,
-        focalLength: FocalLength.stored()
-    ))
+    @Published private(set) var previewZoom = CGFloat(1)
     /// Capture-time exposure compensation in EV (`ExposureCompensation`), separate from the recipe's.
     /// Stored under `ExposureCompensation.storageKey`, which the settings screen also writes.
-    @Published private(set) var exposureBias = Float(UserDefaults.standard.double(forKey: ExposureCompensation.storageKey))
+    @Published private(set) var exposureBias = ExposureCompensation.stored()
     /// Set by a long press on the preview; cleared by the next tap.
     @Published var isAEAFLocked = false
     private var subjectAreaObserver: NSObjectProtocol?
@@ -36,6 +33,11 @@ final class CameraController: NSObject, ObservableObject {
         let focalLength: FocalLength
         var rawData: Data?
         var processedData: Data?
+    }
+
+    override init() {
+        super.init()
+        updatePreviewZoom()
     }
 
     func start() async {
@@ -53,74 +55,52 @@ final class CameraController: NSObject, ObservableObject {
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
             status = "広角カメラがありません"; return
         }
-        let input: AVCaptureDeviceInput
-        do {
-            input = try AVCaptureDeviceInput(device: device)
-        } catch {
-            status = "カメラを開けません: \(error.localizedDescription)"; return
-        }
-        session.beginConfiguration()
-        session.sessionPreset = .photo
-        guard session.canAddInput(input) else {
-            status = "カメラ入力を追加できません"; session.commitConfiguration(); return
-        }
-        guard session.canAddOutput(output) else {
-            status = "写真出力を追加できません"; session.commitConfiguration(); return
-        }
-        self.device = device
-        subjectAreaObserver = NotificationCenter.default.addObserver(
-            forName: AVCaptureDevice.subjectAreaDidChangeNotification, object: device, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in self?.resumeContinuousFocusAndExposure() }
-        }
-        session.addInput(input)
-        session.addOutput(output)
-        if output.isAppleProRAWSupported {
-            output.isAppleProRAWEnabled = false
-        }
-
-        // Keep the format the .photo preset picks. The main camera lists two 48MP formats;
-        // on iPhone 15 Pro Max only the preset's one offers Bayer RAW,
-        // so choosing "the largest format" ourselves can land on one with no RAW at all.
-        let format = device.activeFormat
-        var photoDims: CMVideoDimensions?
-        var dimensionList = ""
-        if let dims = format.supportedMaxPhotoDimensions.last {
-            output.maxPhotoDimensions = dims
-            let video = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
-            if video.height > 0 {
-                sensorAspect = Double(video.width) / Double(video.height)
+        switch PhotoSessionBuilder.configurePhotoSession(session, device: device, output: output) {
+        case .failure(let message):
+            status = message
+            return
+        case .success(let info):
+            self.device = device
+            if let aspect = info.sensorAspect { sensorAspect = aspect }
+            subjectAreaObserver = NotificationCenter.default.addObserver(
+                forName: AVCaptureDevice.subjectAreaDidChangeNotification, object: device, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.resumeContinuousFocusAndExposure() }
             }
             setFocalLength(FocalLength.stored())
-            photoDims = dims
-            dimensionList = format.supportedMaxPhotoDimensions.map { "\($0.width)x\($0.height)" }.joined(separator: ", ")
-        } else {
-            status = "写真フォーマットがありません"
+            applyStoredExposureBias()
+            reportBayerStatus(maxPhotoSize: info.maxPhotoSize, dimensionList: info.dimensionList)
         }
-        output.maxPhotoQualityPrioritization = .quality
-        session.commitConfiguration()
-        applyStoredExposureBias()
-
-        // Raw formats are valid only after the configuration is committed.
-        if let dims = photoDims {
-            let bayer = output.availableRawPhotoPixelFormatTypes.filter { AVCapturePhotoOutput.isBayerRAWPixelFormat($0) }
-            // The requested size is not the RAW size: 48MP main cameras return 12MP Bayer RAW (#5).
-            // The real size is shown after the first capture.
-            status = "Bayer RAW \(bayer.count)（写真の最大 \(dims.width)x\(dims.height)、候補 \(dimensionList)）"
-            isReady = !bayer.isEmpty
-            if !isReady {
-                status += output.availableRawPhotoPixelFormatTypes.isEmpty ? " — RAW なし" : " — Bayer RAW なし"
-            }
-        }
-
         Task.detached { [session] in session.startRunning() }
+    }
+
+    private func reportBayerStatus(maxPhotoSize: String, dimensionList: String) {
+        let bayer = output.bayerRAWFormats
+        if maxPhotoSize.isEmpty {
+            status = "写真フォーマットがありません"
+            isReady = false
+            return
+        }
+        // The requested size is not the RAW size: 48MP main cameras return 12MP Bayer RAW (#5).
+        status = "Bayer RAW \(bayer.count)（写真の最大 \(maxPhotoSize)、候補 \(dimensionList)）"
+        isReady = !bayer.isEmpty
+        if !isReady {
+            status += output.availableRawPhotoPixelFormatTypes.isEmpty ? " — RAW なし" : " — Bayer RAW なし"
+        }
     }
 
     /// Only the crop changes: the whole sensor is still captured, and the preview zooms to match.
     func setFocalLength(_ newValue: FocalLength) {
         focalLength = newValue
         UserDefaults.standard.set(newValue.rawValue, forKey: FocalLength.storageKey)
-        previewZoom = CGFloat(PreviewFraming.zoom(sensorAspectWidthOverHeight: sensorAspect, focalLength: newValue))
+        updatePreviewZoom()
+    }
+
+    private func updatePreviewZoom() {
+        previewZoom = CGFloat(PreviewFraming.zoom(
+            sensorAspectWidthOverHeight: sensorAspect,
+            focalLength: focalLength
+        ))
     }
 
     /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.
@@ -129,7 +109,7 @@ final class CameraController: NSObject, ObservableObject {
     }
 
     private func applyStoredExposureBias() {
-        setExposureBias(Float(UserDefaults.standard.double(forKey: ExposureCompensation.storageKey)), steps: 0)
+        setExposureBias(ExposureCompensation.stored(), steps: 0)
     }
 
     /// Snaps `ev + steps` thirds to the grid and the device range, sets it on the device and stores it.
@@ -141,11 +121,11 @@ final class CameraController: NSObject, ObservableObject {
             deviceRange: device.minExposureTargetBias...device.maxExposureTargetBias
         )
         do {
-            try device.lockForConfiguration()
-            device.setExposureTargetBias(target, completionHandler: nil)
-            device.unlockForConfiguration()
+            try device.withLockedConfiguration {
+                $0.setExposureTargetBias(target, completionHandler: nil)
+            }
             exposureBias = target
-            UserDefaults.standard.set(Double(target), forKey: ExposureCompensation.storageKey)
+            ExposureCompensation.store(target)
         } catch {
             status = "露出補正を変えられません: \(error.localizedDescription)"
         }
@@ -156,49 +136,58 @@ final class CameraController: NSObject, ObservableObject {
     /// to continuous auto when the scene changes; a long press (`lock`) holds until the next tap.
     /// The exposure compensation still applies while exposure is held.
     func focusAndExpose(at devicePoint: CGPoint, lock: Bool) {
-        guard let device else { return }
-        do {
-            try device.lockForConfiguration()
-            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
-                device.focusPointOfInterest = devicePoint
-                device.focusMode = .autoFocus
-            }
-            if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.autoExpose) {
-                device.exposurePointOfInterest = devicePoint
-                device.exposureMode = .autoExpose
-            }
-            device.isSubjectAreaChangeMonitoringEnabled = !lock
-            device.unlockForConfiguration()
-            isAEAFLocked = lock
-        } catch {
-            status = "ピントと露出を合わせられません: \(error.localizedDescription)"
-        }
+        applyFocusAndExposure(
+            at: devicePoint,
+            focus: .autoFocus,
+            exposure: .autoExpose,
+            monitorSubjectArea: !lock,
+            locked: lock,
+            failureStatus: "ピントと露出を合わせられません"
+        )
     }
 
     /// After a tap, the scene changed: back to continuous auto on the frame center.
     private func resumeContinuousFocusAndExposure() {
-        guard let device, !isAEAFLocked else { return }
-        let center = CGPoint(x: 0.5, y: 0.5)
+        guard !isAEAFLocked else { return }
+        applyFocusAndExposure(
+            at: CGPoint(x: 0.5, y: 0.5),
+            focus: .continuousAutoFocus,
+            exposure: .continuousAutoExposure,
+            monitorSubjectArea: false,
+            locked: false,
+            failureStatus: "ピントと露出を自動に戻せません"
+        )
+    }
+
+    private func applyFocusAndExposure(
+        at point: CGPoint,
+        focus: AVCaptureDevice.FocusMode,
+        exposure: AVCaptureDevice.ExposureMode,
+        monitorSubjectArea: Bool,
+        locked: Bool,
+        failureStatus: String
+    ) {
+        guard let device else { return }
         do {
-            try device.lockForConfiguration()
-            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.continuousAutoFocus) {
-                device.focusPointOfInterest = center
-                device.focusMode = .continuousAutoFocus
+            try device.withLockedConfiguration {
+                if $0.isFocusPointOfInterestSupported, $0.isFocusModeSupported(focus) {
+                    $0.focusPointOfInterest = point
+                    $0.focusMode = focus
+                }
+                if $0.isExposurePointOfInterestSupported, $0.isExposureModeSupported(exposure) {
+                    $0.exposurePointOfInterest = point
+                    $0.exposureMode = exposure
+                }
+                $0.isSubjectAreaChangeMonitoringEnabled = monitorSubjectArea
             }
-            if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.continuousAutoExposure) {
-                device.exposurePointOfInterest = center
-                device.exposureMode = .continuousAutoExposure
-            }
-            device.isSubjectAreaChangeMonitoringEnabled = false
-            device.unlockForConfiguration()
+            isAEAFLocked = locked
         } catch {
-            status = "ピントと露出を自動に戻せません: \(error.localizedDescription)"
+            status = "\(failureStatus): \(error.localizedDescription)"
         }
     }
 
     func capture(recipe: Recipe) {
-        // Bayer RAW (not ProRAW): works on non-Pro models too.
-        guard let rawType = output.availableRawPhotoPixelFormatTypes.first(where: { AVCapturePhotoOutput.isBayerRAWPixelFormat($0) }) else {
+        guard let rawType = output.bayerRAWFormats.first else {
             status = "Bayer RAW のピクセルフォーマットがありません"; return
         }
         let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
@@ -228,7 +217,7 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             guard let raw = pending.rawData else { self.status = "RAW データが返りませんでした"; return }
             let saved = await Developer.shared.developAndSave(
                 rawData: raw,
-                saveDNG: UserDefaults.standard.bool(forKey: "saveDNG"),
+                saveDNG: UserDefaults.standard.bool(forKey: AppPreferences.saveDNGKey),
                 recipe: pending.recipe,
                 focalLength: pending.focalLength
             )

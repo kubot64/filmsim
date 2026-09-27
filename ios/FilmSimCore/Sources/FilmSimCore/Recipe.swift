@@ -25,11 +25,19 @@ public enum FilmSimulation: String, CaseIterable, Codable, Sendable {
     }
 
     /// The X-series highlight shoulder (#16) pulls Fujifilm's GFX LUTs towards X-series JPEGs.
-    /// Other looks have their own highlights in the LUT. Mirrors pipeline.FUJIFILM_FILM_SIMS.
+    /// Other looks have their own highlights in the LUT. Mirrors looks.FUJIFILM_FILM_SIMS.
     public var usesXSeriesShoulder: Bool {
         switch self {
         case .provia, .classicChrome: return true
         case .portra400vc: return false
+        }
+    }
+
+    /// Warm-hue rotation after the LUT (#11). Provia only. Mirrors looks.WARM_HUE_FILM_SIMS.
+    public var usesWarmHue: Bool {
+        switch self {
+        case .provia: return true
+        case .classicChrome, .portra400vc: return false
         }
     }
 }

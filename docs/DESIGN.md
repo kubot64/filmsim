@@ -61,7 +61,7 @@ Leica Standard と Kodak Portra 400VC を足す。Portra 400VC の LUT は焼い
 
 - **Leica Standard**：公式の LUT はないが、DNG と撮って出し JPEG のペアはある。ペアから LUT を最小二乗で当てはめる（`research/filmsim/lutfit.py`、`scripts/fit_look.py`）。写真に出てこない色域は、近くで当てはめた補正をなめらかに延ばして埋める。当てはめに使わなかった組との ΔE で検証する
 - **Portra 400VC**：ネガフィルムなので RAW と JPEG のペアがない。Kodak の技術資料（特性曲線と色素の分光濃度）で骨格を作り、作例と見比べて寄せる。#31 のコダクロームと同じやり方
-- 富士専用の補正（ハイライトの肩、Provia の暖色の色相）は、富士の公式 LUT にだけ掛ける。当てはめた LUT には、そのカメラのハイライトが最初から入っている。Python では `pipeline.FUJIFILM_FILM_SIMS`、公式でないファイルは `film_sim_key` が `"fitted"` を返す
+- 富士専用の補正（ハイライトの肩、Provia の暖色の色相）は、富士の公式 LUT にだけ掛ける。当てはめた LUT には、そのカメラのハイライトが最初から入っている。Python では `looks.FUJIFILM_FILM_SIMS`、公式でないファイルは `looks.film_sim_key` が `"fitted"` を返す
 - 露出アンカー：当てはめるときの露出（`--ev`）を、アプリで 18% グレーが F-Log2 の 0.391 に来る置き方と揃える必要がある。Leica の DNG で中間グレーがどこに来るかは、ペアを集めてから決める（OPEN_QUESTIONS）
 
 ## Portra 400VC のデータ

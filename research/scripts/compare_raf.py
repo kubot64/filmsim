@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 
 from filmsim import F_GAMUT, P3_D65, CubeLUT, Recipe, render
-from filmsim.cube import film_sim_key
+from filmsim.looks import film_sim_key
 from filmsim.metrics import delta_e_breakdown, delta_e_stats
 from filmsim.rawio import crop_center, load_raw_linear, load_srgb, resize_linear, resize_to, save_srgb
 

@@ -64,7 +64,7 @@ public struct Pipeline {
         if recipe.filmSimulation.usesXSeriesShoulder {
             out = HighlightShoulder.apply(to: out, kernel: kernels.shoulder)
         }
-        if WarmHue.applies(to: recipe.filmSimulation) {
+        if recipe.filmSimulation.usesWarmHue {
             out = WarmHue.apply(to: out, kernel: kernels.warmHue)
         }
         out = ToneCurve.apply(to: out, highlight: recipe.highlight, shadow: recipe.shadow, kernel: kernels.tone)

@@ -10,7 +10,8 @@ struct CameraView: View {
     @StateObject private var camera = CameraController()
     @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
 
-    private var recipe: Recipe { Recipe.decoded(from: storedRecipe) }
+    private var recipe: Binding<Recipe> { Recipe.binding($storedRecipe) }
+    private var currentRecipe: Recipe { recipe.wrappedValue }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -23,7 +24,7 @@ struct CameraView: View {
                 Text(camera.status).font(.footnote).foregroundStyle(.white)
                 exposureControl
                 Button {
-                    camera.capture(recipe: recipe)
+                    camera.capture(recipe: currentRecipe)
                 } label: {
                     Circle().fill(.white).frame(width: 72, height: 72)
                 }
@@ -37,7 +38,8 @@ struct CameraView: View {
     }
 
     private var recipeBar: some View {
-        VStack(spacing: 4) {
+        let summary = currentRecipe.adjustmentSummary
+        return VStack(spacing: 4) {
             HStack(spacing: 8) {
                 filmSimulationMenu
                 Button {
@@ -61,8 +63,8 @@ struct CameraView: View {
                     .background(Color.yellow, in: Capsule())
                     .foregroundStyle(.black)
             }
-            if !recipe.adjustmentSummary.isEmpty {
-                Text(recipe.adjustmentSummary)
+            if !summary.isEmpty {
+                Text(summary)
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.85))
                     .padding(.horizontal, 8)
@@ -74,11 +76,9 @@ struct CameraView: View {
 
     private var filmSimulationMenu: some View {
         Menu {
-            Picker("Film simulation", selection: filmSimulation) {
-                ForEach(FilmSimulation.allCases, id: \.self) { Text($0.displayName) }
-            }
+            FilmSimulationPicker(selection: recipe.filmSimulation, title: "Film simulation")
         } label: {
-            Label(recipe.filmSimulation.displayName, systemImage: "camera.filters")
+            Label(currentRecipe.filmSimulation.displayName, systemImage: "camera.filters")
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -108,16 +108,5 @@ struct CameraView: View {
         .padding(.vertical, 4)
         .background(.black.opacity(0.5), in: Capsule())
         .disabled(!camera.isReady)
-    }
-
-    private var filmSimulation: Binding<FilmSimulation> {
-        Binding(
-            get: { recipe.filmSimulation },
-            set: { newValue in
-                var r = recipe
-                r.filmSimulation = newValue
-                storedRecipe = r.encoded
-            }
-        )
     }
 }

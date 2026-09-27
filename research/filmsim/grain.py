@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
+from .gamut import BT709_LUMA
+
 STRENGTH = {"off": 0.0, "weak": 0.025, "strong": 0.05}
 SIZE = {"small": 0.6, "large": 1.1}  # gaussian sigma in pixels at full resolution
 
@@ -46,7 +48,8 @@ def add_grain(img: np.ndarray, strength: str = "weak", size: str = "small", seed
     noise = rng.standard_normal((h, w))
     noise = gaussian_filter(noise, SIZE[size])
     noise /= noise.std() + 1e-9
-    lum = 0.2126 * img[..., 0] + 0.7152 * img[..., 1] + 0.0722 * img[..., 2]
+    kr, kg, kb = BT709_LUMA
+    lum = kr * img[..., 0] + kg * img[..., 1] + kb * img[..., 2]
     # more visible in midtones, fades in deep shadows and near white
     weight = grain_weight(lum)
     return np.clip(img + (noise * weight * amp)[..., None], 0.0, 1.0)

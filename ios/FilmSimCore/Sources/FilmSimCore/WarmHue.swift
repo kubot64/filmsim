@@ -13,10 +13,11 @@ public enum WarmHue {
     public static let center = 140.0
     public static let width = 80.0
 
-    public static func applies(to simulation: FilmSimulation) -> Bool { simulation == .provia }
+    public static func applies(to simulation: FilmSimulation) -> Bool { simulation.usesWarmHue }
 
-    private static let kr = 0.2126, kb = 0.0722
-    private static let kg = 1 - kr - kb
+    private static let kr = HighlightShoulder.luma.x
+    private static let kb = HighlightShoulder.luma.z
+    private static let kg = HighlightShoulder.luma.y
     private static let cbScale = 2 * (1 - kb)
     private static let crScale = 2 * (1 - kr)
 
@@ -41,6 +42,14 @@ public enum WarmHue {
     }
 
     public static func apply(to image: CIImage, kernel: CIColorKernel) -> CIImage {
-        kernel.apply(extent: image.extent, arguments: [image]) ?? image
+        kernel.apply(
+            extent: image.extent,
+            arguments: [
+                image,
+                NSNumber(value: Float(degrees)),
+                NSNumber(value: Float(center)),
+                NSNumber(value: Float(width)),
+            ]
+        ) ?? image
     }
 }

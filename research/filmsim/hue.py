@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .gamut import BT709_LUMA
+
 # Fixed rotation applied after the Provia LUT (#11). Fitted on seven Provia pairs
 # (X100VI x4, X-T5 x3), read with both LibRaw and CIRAWFilter: reds/oranges/yellows
 # rotate 7 deg back toward red. The window (140 +- 80 deg) stops short of green.
@@ -23,10 +25,8 @@ import numpy as np
 WARM_HUE_DEGREES = -7.0
 WARM_HUE_CENTER = 140.0
 WARM_HUE_WIDTH = 80.0
-WARM_HUE_FILM_SIMS = ("provia",)
 
-_KR, _KB = 0.2126, 0.0722
-_KG = 1 - _KR - _KB
+_KR, _KG, _KB = BT709_LUMA
 _CB_SCALE = 2 * (1 - _KB)  # 1.8556
 _CR_SCALE = 2 * (1 - _KR)  # 1.5748
 

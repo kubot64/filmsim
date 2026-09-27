@@ -89,20 +89,3 @@ class CubeLUT:
         c0 = c00 * (1 - fg) + c10 * fg
         c1 = c01 * (1 - fg) + c11 * fg
         return c0 * (1 - fb) + c1 * fb
-
-
-def film_sim_key(path: str | Path) -> str:
-    """Recipe.film_sim for an official LUT file, so render() applies per-simulation fixes.
-
-    Other official files (named "FLog2_to_...") map to "lut", which gets only the fixes
-    every Fujifilm LUT gets. Anything else, such as a LUT from scripts/fit_look.py, maps
-    to "fitted" and gets none of them.
-    """
-    name = Path(path).name.upper()
-    if not name.startswith("FLOG2_TO_"):
-        return "fitted"
-    if "PROVIA" in name:
-        return "provia"
-    if "CLASSIC-CHROME" in name:
-        return "classic_chrome"
-    return "lut"

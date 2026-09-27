@@ -25,6 +25,9 @@ final class WarmHueTests: XCTestCase {
     }
 
     func testOnlyProvia() {
+        XCTAssertTrue(FilmSimulation.provia.usesWarmHue)
+        XCTAssertFalse(FilmSimulation.classicChrome.usesWarmHue)
+        XCTAssertFalse(FilmSimulation.portra400vc.usesWarmHue)
         XCTAssertTrue(WarmHue.applies(to: .provia))
         XCTAssertFalse(WarmHue.applies(to: .classicChrome))
         XCTAssertFalse(WarmHue.applies(to: .portra400vc))

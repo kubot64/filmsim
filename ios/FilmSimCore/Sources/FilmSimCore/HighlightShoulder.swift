@@ -25,6 +25,13 @@ public enum HighlightShoulder {
     }
 
     public static func apply(to image: CIImage, kernel: CIColorKernel) -> CIImage {
-        kernel.apply(extent: image.extent, arguments: [image]) ?? image
+        kernel.apply(
+            extent: image.extent,
+            arguments: [
+                image,
+                NSNumber(value: Float(knee)),
+                NSNumber(value: Float(gamma)),
+            ]
+        ) ?? image
     }
 }

@@ -23,7 +23,7 @@ import rawpy
 from PIL import Image, ImageDraw
 
 from filmsim import BT2020, P3_D65, CubeLUT, Recipe, render
-from filmsim.cube import film_sim_key
+from filmsim.looks import film_sim_key
 from filmsim.ciraw import load_raw_linear_ciraw
 from filmsim.anchor import MIDDLE_GREY, center_region, headroom_stops, luminance, metered_anchor_ev
 from filmsim.rawio import load_raw_linear, resize_linear

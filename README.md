@@ -7,7 +7,7 @@ X100 系の色に仕上げる自分用アプリ。
 
 - `research/` : Python で色変換パイプラインを組み、公開 RAF と撮って出し JPEG のペアで ΔE を検証する
 - `ios/`      : Swift パッケージ `FilmSimCore`（変換ロジック）と、XcodeGen で生成する iOS アプリ `FilmSim`
-- `docs/`     : 設計判断（DESIGN.md）、着手順（ROADMAP.md）、未決事項（OPEN_QUESTIONS.md）
+- `docs/`     : 今のアプリの振る舞い（SPEC.md）と設計判断（adr/）。用語は直下の CONTEXT.md、測定の記録は `research/notes/`、未決事項とこれからやることは GitHub の issue に置く（AGENTS.md「ドキュメント」）
 
 ## セットアップ
 

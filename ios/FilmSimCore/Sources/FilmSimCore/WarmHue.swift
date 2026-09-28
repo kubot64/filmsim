@@ -2,7 +2,7 @@ import CoreImage
 import Foundation
 
 /// Fixed rotation of warm hues after the Provia LUT, toward X-series camera JPEGs.
-/// Same as `x_series_warm_hue` in research/filmsim/hue.py (docs/DESIGN.md, #11).
+/// Same as `x_series_warm_hue` in research/filmsim/hue.py (docs/adr/0004, #11).
 /// The Metal `xSeriesWarmHue` kernel must stay in lockstep with `evaluate`.
 ///
 /// Works in BT.709 Y'CbCr of the display-referred codes: Y' and the chroma length stay

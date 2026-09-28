@@ -13,7 +13,7 @@ struct CameraRawSupport: Identifiable, Sendable {
 }
 
 /// Checks which cameras can give Bayer RAW or ProRAW, to decide how the front camera and the
-/// Pro ultra-wide / telephoto could join the pipeline (ROADMAP). It only reports; capture is unchanged.
+/// Pro ultra-wide / telephoto could join the pipeline (issues #45, #78). It only reports; capture is unchanged.
 ///
 /// Each camera goes into its own session that is configured but never started, so the camera
 /// screen's running session keeps the hardware. RAW formats are listed once the configuration

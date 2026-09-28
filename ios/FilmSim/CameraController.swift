@@ -3,7 +3,7 @@ import FilmSimCore
 import SwiftUI
 
 /// AVFoundation session configured for Bayer RAW. Requests the largest photo size, but 48MP
-/// main cameras return 12MP Bayer RAW (DESIGN.md "入力形式").
+/// main cameras return 12MP Bayer RAW (docs/adr/0002).
 @MainActor
 final class CameraController: NSObject, ObservableObject {
     let session = AVCaptureSession()
@@ -141,6 +141,11 @@ final class CameraController: NSObject, ObservableObject {
     /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.
     func stepExposureBias(by steps: Int) {
         setExposureBias(exposureBias, steps: steps)
+    }
+
+    /// Sets the compensation to `ev` (snapped to thirds and the device's range), from the dial.
+    func setExposureBias(to ev: Float) {
+        setExposureBias(ev, steps: 0)
     }
 
     private func applyStoredExposureBias() {

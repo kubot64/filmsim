@@ -2,7 +2,7 @@
 
 Placeholder mapping of Fujifilm's -2..+4 scale onto a smooth curve applied to
 display-referred (LUT output) values. There is no ground truth for how the real
-camera bends the curve, so this is tuned by eye. See docs/OPEN_QUESTIONS.md.
+camera bends the curve, so this is tuned by eye. See issue #72.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def x_series_shoulder(rgb: np.ndarray) -> np.ndarray:
     on every X-series pair tested. Luma above SHOULDER_KNEE is blended toward
     luma**SHOULDER_GAMMA and RGB is scaled by the luma ratio, so hue and saturation
     stay put. Below the knee and at 1.0 nothing changes. The one GFX pair got worse,
-    so this is an X-series target, not a property of the LUT. See docs/DESIGN.md.
+    so this is an X-series target, not a property of the LUT. See docs/adr/0004.
     """
     rgb = np.clip(np.asarray(rgb, dtype=np.float64), 0.0, 1.0)
     y = rgb @ _LUMA

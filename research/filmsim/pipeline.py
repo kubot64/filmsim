@@ -41,7 +41,7 @@ def render(
     """Render a scene-linear (H, W, 3) image to display-referred code values.
 
     The official LUTs take F-Log2 / F-Gamut in and produce BT.709-gamma codes.
-    They are passed through unchanged and treated as sRGB (docs/DESIGN.md).
+    They are passed through unchanged and treated as sRGB (docs/adr/0003).
     """
     x = np.asarray(linear, dtype=np.float64)
     x = x * wb_shift_gains(*recipe.wb_shift)

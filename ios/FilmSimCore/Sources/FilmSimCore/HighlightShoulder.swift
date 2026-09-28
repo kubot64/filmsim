@@ -2,7 +2,7 @@ import CoreImage
 import Foundation
 
 /// Fixed lift of the LUT output's highlights toward X-series camera JPEGs.
-/// Same as `x_series_shoulder` in research/filmsim/tone.py (docs/DESIGN.md, #16).
+/// Same as `x_series_shoulder` in research/filmsim/tone.py (docs/adr/0004, #16).
 /// The Metal `xSeriesShoulder` kernel must stay in lockstep with `evaluate`.
 ///
 /// Luma above `knee` is blended toward luma^`gamma` with a smoothstep, and RGB is

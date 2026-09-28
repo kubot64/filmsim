@@ -16,7 +16,7 @@ def delta_e_stats(a: np.ndarray, b: np.ndarray) -> dict[str, float]:
     """Both inputs are decoded with the sRGB EOTF.
 
     The camera JPEG is sRGB, and our code values are shown and saved as sRGB too
-    (docs/DESIGN.md, #13), so both sides use the same curve.
+    (docs/adr/0003, #13), so both sides use the same curve.
     """
     de = colour.delta_E(srgb_to_lab(a), srgb_to_lab(b), method="CIE 2000")
     return {

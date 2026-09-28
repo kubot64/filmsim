@@ -81,14 +81,7 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
               let commandBuffer = commandQueue.makeCommandBuffer() else { return }
 
         // Scale down before the look so the kernels run at screen size, not sensor size.
-        var image = frame.croppedThreeByTwo(focalLength: focalLength).oriented(.right)
-        image = image.transformed(by: CGAffineTransform(translationX: -image.extent.minX, y: -image.extent.minY))
-        let scale = max(size.width / image.extent.width, size.height / image.extent.height)
-        image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        image = image.transformed(by: CGAffineTransform(
-            translationX: (size.width - image.extent.width) / 2,
-            y: (size.height - image.extent.height) / 2
-        ))
+        var image = frame.livePreviewFrame(focalLength: focalLength, filling: size)
 
         // The pipeline's output is BT.709-gamma codes that are written as they are, like `Developer`
         // retags them as sRGB. The plain frame is converted to sRGB instead.
@@ -107,7 +100,7 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
         }
         do {
             _ = try context.startTask(
-                toRender: image.cropped(to: CGRect(origin: .zero, size: size)),
+                toRender: image,
                 from: CGRect(origin: .zero, size: size),
                 to: destination,
                 at: .zero
@@ -195,30 +188,17 @@ struct CameraPreview: UIViewRepresentable {
             focus(at: g.location(in: self), lock: true)
         }
 
-        /// A tap near the edge moves in until the whole frame is on screen, so the frame and
-        /// the point being measured stay the same.
         private func focus(at location: CGPoint, lock: Bool) {
-            let image = imageRect
-            let area = image.intersection(bounds).insetBy(dx: focusMark.bounds.width / 2, dy: focusMark.bounds.height / 2)
-            guard !area.isNull, image.width > 0, image.height > 0 else { return }
-            let x = min(max(location.x, area.minX), area.maxX)
-            let y = min(max(location.y, area.minY), area.maxY)
-            onFocus?(CGPoint(x: (x - image.minX) / image.width, y: (y - image.minY) / image.height), lock)
+            guard let p = PreviewGeometry.focusViewPoint(forTap: location, in: bounds, frameSize: focusMark.bounds.size) else { return }
+            onFocus?(p, lock)
             focusMark.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
             UIView.animate(withDuration: 0.2) { self.focusMark.transform = .identity }
-        }
-
-        /// The 2:3 image aspect-filled into the view, as `PreviewRenderer` draws it.
-        private var imageRect: CGRect {
-            let b = bounds
-            let s = max(b.width / 2, b.height / 3)
-            return CGRect(x: b.midX - s, y: b.midY - s * 1.5, width: s * 2, height: s * 3)
         }
 
         override func layoutSubviews() {
             super.layoutSubviews()
             metalView.frame = bounds
-            let image = imageRect
+            let image = PreviewGeometry.imageRect(in: bounds)
             focusMark.center = CGPoint(x: image.minX + focusPoint.x * image.width, y: image.minY + focusPoint.y * image.height)
             focusMark.layer.borderColor = (isLocked ? UIColor.systemYellow : UIColor.white).cgColor
         }

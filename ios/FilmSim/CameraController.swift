@@ -8,7 +8,12 @@ import SwiftUI
 final class CameraController: NSObject, ObservableObject {
     let session = AVCaptureSession()
     private let output = AVCapturePhotoOutput()
+    /// Frames for the live preview with the film simulation (#50).
+    private let videoOutput = AVCaptureVideoDataOutput()
+    let previewRenderer = PreviewRenderer()
     private var device: AVCaptureDevice?
+    /// How the phone is held, for the shot's orientation (#44). The interface stays portrait.
+    private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var inflight: [Int64: PendingCapture] = [:]
 
     @Published var isReady = false
@@ -17,15 +22,18 @@ final class CameraController: NSObject, ObservableObject {
     /// which the settings and develop screens also write.
     @Published private(set) var focalLength = FocalLength.stored()
     /// Format width/height of the active camera. 4:3 until the format is known.
-    private var sensorAspect = PreviewFraming.defaultSensorAspect
-    /// Aspect-fill zoom so the portrait 2:3 preview matches the focal-length crop.
-    @Published private(set) var previewZoom = CGFloat(1)
+    @Published private(set) var sensorAspect = PreviewGeometry.defaultSensorAspect
+    /// The part of the sensor the preview shows, which is what the shot keeps.
+    var previewCrop: CGRect { PreviewGeometry.crop(sensorAspect: sensorAspect, focalLength: focalLength) }
     /// Capture-time exposure compensation in EV (`ExposureCompensation`), separate from the recipe's.
     /// Stored under `ExposureCompensation.storageKey`, which the settings screen also writes.
     @Published private(set) var exposureBias = ExposureCompensation.stored()
     /// Set by a long press on the preview; cleared by the next tap.
     @Published var isAEAFLocked = false
-    private var subjectAreaObserver: NSObjectProtocol?
+    /// Where focus and exposure are measured, as a point on the preview (0...1, top-left origin).
+    /// Kept in screen terms like a camera's AF point (#46): changing the focal length keeps the
+    /// frame where it is on screen and focuses on whatever is there now.
+    @Published private(set) var focusViewPoint = CGPoint(x: 0.5, y: 0.5)
 
     struct PendingCapture {
         /// The recipe and focal length when the shutter was pressed; a later change applies to the next shot.
@@ -33,11 +41,6 @@ final class CameraController: NSObject, ObservableObject {
         let focalLength: FocalLength
         var rawData: Data?
         var processedData: Data?
-    }
-
-    override init() {
-        super.init()
-        updatePreviewZoom()
     }
 
     func start() async {
@@ -62,16 +65,32 @@ final class CameraController: NSObject, ObservableObject {
         case .success(let info):
             self.device = device
             if let aspect = info.sensorAspect { sensorAspect = aspect }
-            subjectAreaObserver = NotificationCenter.default.addObserver(
-                forName: AVCaptureDevice.subjectAreaDidChangeNotification, object: device, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in self?.resumeContinuousFocusAndExposure() }
-            }
+            rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+            addPreviewOutput()
             setFocalLength(FocalLength.stored())
             applyStoredExposureBias()
             reportBayerStatus(maxPhotoSize: info.maxPhotoSize, dimensionList: info.dimensionList)
         }
         Task.detached { [session] in session.startRunning() }
+    }
+
+    /// Frames stay in the sensor-native orientation; `PreviewRenderer` crops and turns them.
+    private func addPreviewOutput() {
+        guard let previewRenderer else { return }
+        videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        videoOutput.alwaysDiscardsLateVideoFrames = true
+        videoOutput.setSampleBufferDelegate(previewRenderer, queue: previewRenderer.sampleQueue)
+        session.beginConfiguration()
+        if session.canAddOutput(videoOutput) { session.addOutput(videoOutput) }
+        session.commitConfiguration()
+    }
+
+    /// Film simulation for the live preview. Loads the LUT the same way the develop step does.
+    func updatePreviewLook(_ recipe: Recipe) async {
+        let pipeline = await Developer.shared.pipeline(for: recipe)
+        // A later recipe may have started while this LUT loaded; `.task(id:)` cancelled this one.
+        guard !Task.isCancelled else { return }
+        previewRenderer?.setLook(pipeline, recipe: recipe)
     }
 
     private func reportBayerStatus(maxPhotoSize: String, dimensionList: String) {
@@ -89,18 +108,13 @@ final class CameraController: NSObject, ObservableObject {
         }
     }
 
-    /// Only the crop changes: the whole sensor is still captured, and the preview zooms to match.
+    /// Only the crop changes: the whole sensor is still captured, and the preview crops to match.
+    /// The focus frame stays put on screen, so the device point under it is set again.
     func setFocalLength(_ newValue: FocalLength) {
         focalLength = newValue
         UserDefaults.standard.set(newValue.rawValue, forKey: FocalLength.storageKey)
-        updatePreviewZoom()
-    }
-
-    private func updatePreviewZoom() {
-        previewZoom = CGFloat(PreviewFraming.zoom(
-            sensorAspectWidthOverHeight: sensorAspect,
-            focalLength: focalLength
-        ))
+        previewRenderer?.setFocalLength(newValue)
+        focusAndExpose(atView: focusViewPoint, lock: isAEAFLocked)
     }
 
     /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.
@@ -131,31 +145,18 @@ final class CameraController: NSObject, ObservableObject {
         }
     }
 
-    /// `devicePoint` is in the device's normalized space (0...1, sensor orientation).
-    /// `.autoFocus` and `.autoExpose` measure once at the point and then hold. A tap goes back
-    /// to continuous auto when the scene changes; a long press (`lock`) holds until the next tap.
-    /// The exposure compensation still applies while exposure is held.
-    func focusAndExpose(at devicePoint: CGPoint, lock: Bool) {
+    /// `viewPoint` is normalized to the preview (`PreviewGeometry`).
+    /// A tap keeps focusing and metering at the point until the next tap, like a fixed AF point (#46);
+    /// it does not go back to the centre when the scene changes. A long press (`lock`) measures once
+    /// and holds until the next tap. The exposure compensation still applies while exposure is held.
+    func focusAndExpose(atView viewPoint: CGPoint, lock: Bool) {
+        focusViewPoint = viewPoint
         applyFocusAndExposure(
-            at: devicePoint,
-            focus: .autoFocus,
-            exposure: .autoExpose,
-            monitorSubjectArea: !lock,
+            at: PreviewGeometry.devicePoint(fromView: viewPoint, crop: previewCrop),
+            focus: lock ? .autoFocus : .continuousAutoFocus,
+            exposure: lock ? .autoExpose : .continuousAutoExposure,
             locked: lock,
             failureStatus: "ピントと露出を合わせられません"
-        )
-    }
-
-    /// After a tap, the scene changed: back to continuous auto on the frame center.
-    private func resumeContinuousFocusAndExposure() {
-        guard !isAEAFLocked else { return }
-        applyFocusAndExposure(
-            at: CGPoint(x: 0.5, y: 0.5),
-            focus: .continuousAutoFocus,
-            exposure: .continuousAutoExposure,
-            monitorSubjectArea: false,
-            locked: false,
-            failureStatus: "ピントと露出を自動に戻せません"
         )
     }
 
@@ -163,7 +164,6 @@ final class CameraController: NSObject, ObservableObject {
         at point: CGPoint,
         focus: AVCaptureDevice.FocusMode,
         exposure: AVCaptureDevice.ExposureMode,
-        monitorSubjectArea: Bool,
         locked: Bool,
         failureStatus: String
     ) {
@@ -178,7 +178,6 @@ final class CameraController: NSObject, ObservableObject {
                     $0.exposurePointOfInterest = point
                     $0.exposureMode = exposure
                 }
-                $0.isSubjectAreaChangeMonitoringEnabled = monitorSubjectArea
             }
             isAEAFLocked = locked
         } catch {
@@ -192,6 +191,13 @@ final class CameraController: NSObject, ObservableObject {
         }
         let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
         settings.maxPhotoDimensions = output.maxPhotoDimensions
+        // Record how the phone is held; the DNG keeps the sensor-native pixels and an orientation tag,
+        // and the develop step crops before turning (#44).
+        if let angle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture,
+           let connection = output.connection(with: .video),
+           connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
+        }
         // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
         inflight[settings.uniqueID] = PendingCapture(recipe: recipe, focalLength: focalLength)
         output.capturePhoto(with: settings, delegate: self)
@@ -222,107 +228,6 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 focalLength: pending.focalLength
             )
             self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
-        }
-    }
-}
-
-/// UIKit bridge for the live preview.
-struct CameraPreview: UIViewRepresentable {
-    let session: AVCaptureSession
-    var zoom: CGFloat
-    /// Device point (normalized, sensor orientation) and whether it was a long press (AE/AF lock).
-    var onFocus: (CGPoint, Bool) -> Void
-
-    func makeUIView(context: Context) -> PreviewView {
-        let v = PreviewView()
-        v.videoPreviewLayer.session = session
-        v.zoom = zoom
-        v.onFocus = onFocus
-        return v
-    }
-
-    func updateUIView(_ uiView: PreviewView, context: Context) {
-        uiView.zoom = zoom
-        uiView.onFocus = onFocus
-        uiView.setNeedsLayout()
-    }
-
-    /// The preview layer is a sublayer, larger than the view by `zoom`, so a 2:3 clip
-    /// shows the same center crop `SensorCrop` applies before the shot is turned upright.
-    final class PreviewView: UIView {
-        let videoPreviewLayer = AVCaptureVideoPreviewLayer()
-        var zoom: CGFloat = 1
-        var onFocus: ((CGPoint, Bool) -> Void)?
-        /// Square drawn where the user tapped. Fades after a tap, stays while locked.
-        private let focusMark = UIView(frame: CGRect(x: 0, y: 0, width: 72, height: 72))
-
-        override init(frame: CGRect) {
-            super.init(frame: frame)
-            clipsToBounds = true
-            videoPreviewLayer.videoGravity = .resizeAspectFill
-            layer.addSublayer(videoPreviewLayer)
-
-            focusMark.layer.borderColor = UIColor.systemYellow.cgColor
-            focusMark.layer.borderWidth = 1.5
-            focusMark.isUserInteractionEnabled = false
-            focusMark.alpha = 0
-            addSubview(focusMark)
-
-            let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
-            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
-            tap.require(toFail: longPress)
-            addGestureRecognizer(longPress)
-            addGestureRecognizer(tap)
-        }
-
-        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-        @objc private func handleTap(_ g: UITapGestureRecognizer) {
-            focus(at: g.location(in: self), lock: false)
-        }
-
-        @objc private func handleLongPress(_ g: UILongPressGestureRecognizer) {
-            guard g.state == .began else { return }
-            focus(at: g.location(in: self), lock: true)
-        }
-
-        /// The preview layer is larger than the view and rotated, so convert through the layer:
-        /// it accounts for the zoom offset, aspect fill and the 90° rotation.
-        private func focus(at viewPoint: CGPoint, lock: Bool) {
-            let layerPoint = videoPreviewLayer.convert(viewPoint, from: layer)
-            onFocus?(videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: layerPoint), lock)
-
-            focusMark.layer.removeAllAnimations()
-            focusMark.center = viewPoint
-            focusMark.alpha = 1
-            focusMark.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
-            UIView.animate(withDuration: 0.2) { self.focusMark.transform = .identity }
-            guard !lock else { return }
-            UIView.animate(withDuration: 0.3, delay: 1.0, options: []) { self.focusMark.alpha = 0 }
-        }
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            let b = bounds
-            let z = zoom > 0 ? zoom : 1
-            videoPreviewLayer.frame = CGRect(
-                x: b.midX - b.width * z / 2,
-                y: b.midY - b.height * z / 2,
-                width: b.width * z,
-                height: b.height * z
-            )
-            applyPortraitRotationIfNeeded()
-        }
-
-        /// The interface is portrait-locked. The connection exists once the session
-        /// configuration is committed, which can be before the first layout. Write 90°
-        /// only when the current angle is something else, so a reset is corrected
-        /// without assigning on every layout.
-        private func applyPortraitRotationIfNeeded() {
-            guard let connection = videoPreviewLayer.connection,
-                  connection.isVideoRotationAngleSupported(90),
-                  connection.videoRotationAngle != 90 else { return }
-            connection.videoRotationAngle = 90
         }
     }
 }

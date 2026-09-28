@@ -7,7 +7,8 @@ import UIKit
 /// sideways between them, swipe down to go back to the camera. Each shows the recipe and focal
 /// length it was taken with. Share, delete, open in Photos; editing is left to Photos.
 /// The screen says 写真 for the HEIC and RAW for the DNG, the word Photos also marks it with.
-/// A shot whose RAW is still in the library is marked, and can be re-developed (a development tool).
+/// A shot whose RAW is still in the library gets a 写真 / RAW switch; showing the RAW offers
+/// re-developing it (a development tool).
 struct ReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var shots = ShotStore.shared
@@ -23,6 +24,8 @@ struct ReviewView: View {
     @State private var withRaw: Set<UUID> = []
     /// Set while asking whether to delete the RAW too.
     @State private var confirmingDelete: ShotRecord?
+    /// Showing the RAW instead of the photo. Only for shots that have one.
+    @State private var showsRaw = false
 
     private enum Access { case checking, allowed, denied }
 
@@ -87,10 +90,11 @@ struct ReviewView: View {
     private var pages: some View {
         TabView(selection: $current) {
             ForEach(available) { shot in
-                ShotPage(shot: shot, hasRaw: withRaw.contains(shot.id)).tag(Optional(shot.id))
+                ShotPage(shot: shot, raw: showsRaw && withRaw.contains(shot.id)).tag(Optional(shot.id))
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        .onChange(of: current) { _, _ in showsRaw = false }
         .safeAreaInset(edge: .bottom) { bottomBar }
     }
 
@@ -110,10 +114,18 @@ struct ReviewView: View {
             if let message {
                 Text(message).font(.caption).foregroundStyle(.yellow)
             }
+            if let shot = currentShot, withRaw.contains(shot.id) {
+                Picker("表示", selection: $showsRaw) {
+                    Text("写真").tag(false)
+                    Text("RAW").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 180)
+            }
             HStack(spacing: 36) {
                 barButton("共有", systemImage: "square.and.arrow.up") { Task { await share() } }
                 barButton("写真アプリ", systemImage: "photo.on.rectangle") { openPhotos() }
-                if let shot = currentShot, withRaw.contains(shot.id) {
+                if let shot = currentShot, showsRaw, withRaw.contains(shot.id) {
                     barButton("現像し直す", systemImage: "slider.horizontal.3") { Task { await redevelop(shot) } }
                 }
                 barButton("削除", systemImage: "trash", role: .destructive) {
@@ -168,12 +180,22 @@ struct ReviewView: View {
     }
 
     /// Shares the HEIC file as saved, not a re-encoded copy.
+    /// Shares what is shown: the HEIC, or the DNG while the RAW is shown, as the saved files.
     private func share() async {
-        guard let shot = currentShot, let id = shot.heicAssetID,
-              let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else { return }
+        guard let shot = currentShot else { return }
+        let raw = showsRaw && withRaw.contains(shot.id)
         do {
-            let data = try await Self.imageData(asset)
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("Irocam-\(shot.id.uuidString.prefix(8)).heic")
+            let data: Data
+            if raw, let id = shot.dngAssetID {
+                data = try await LibraryRaw.load(assetID: id)
+            } else if let id = shot.heicAssetID,
+                      let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject {
+                data = try await Self.imageData(asset)
+            } else {
+                return
+            }
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Irocam-\(shot.id.uuidString.prefix(8)).\(raw ? "dng" : "heic")")
             try data.write(to: url, options: .atomic)
             sharing = ShareItem(url: url)
         } catch {
@@ -244,7 +266,8 @@ struct ReviewView: View {
 /// One photo, loaded at screen size when its page comes up.
 private struct ShotPage: View {
     let shot: ShotRecord
-    let hasRaw: Bool
+    /// Shows the DNG as Photos renders it, without this app's look.
+    let raw: Bool
     @State private var image: UIImage?
 
     var body: some View {
@@ -252,32 +275,23 @@ private struct ShotPage: View {
             Group {
                 if let image {
                     Image(uiImage: image).resizable().scaledToFit()
-                } else if let thumb = ShotStore.shared.thumbnail(for: shot) {
+                } else if !raw, let thumb = ShotStore.shared.thumbnail(for: shot) {
                     Image(uiImage: thumb).resizable().scaledToFit()
                 } else {
                     ProgressView().tint(.white)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
-            .overlay(alignment: .topTrailing) {
-                if hasRaw {
-                    Text("RAW")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
-                        .padding(16)
-                        .accessibilityLabel("RAW も保存済み")
-                }
+            .task(id: "\(shot.id) \(raw)") {
+                image = nil
+                image = await load(size: geo.size)
             }
-            .task(id: shot.id) { image = await load(size: geo.size) }
         }
-        .accessibilityLabel("\(shot.recipeName)、\(shot.focalLength.displayName)の写真")
+        .accessibilityLabel(raw ? "\(shot.recipeName)、\(shot.focalLength.displayName)の RAW" : "\(shot.recipeName)、\(shot.focalLength.displayName)の写真")
     }
 
     private func load(size: CGSize) async -> UIImage? {
-        guard let id = shot.heicAssetID,
+        guard let id = raw ? shot.dngAssetID : shot.heicAssetID,
               let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else { return nil }
         let scale = UIScreen.main.scale
         let options = PHImageRequestOptions()

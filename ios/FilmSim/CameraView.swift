@@ -18,6 +18,8 @@ struct CameraView: View {
     @State private var adjustingExposure = false
     /// Bumped on every dial movement, restarting the wait before the strip comes back.
     @State private var exposureTouches = 0
+    /// Set while the dial is being swiped or is still gliding; the strip never comes back then.
+    @State private var dialMoving = false
 
     private var currentRecipe: Recipe { recipes.selected.recipe }
     private var rotation: Double { camera.controlRotation }
@@ -53,8 +55,8 @@ struct CameraView: View {
         .sheet(isPresented: $showsSettings, onDismiss: camera.applyStoredSettings) { SettingsView() }
         .task { await camera.start() }
         .task(id: currentRecipe) { await camera.updatePreviewLook(currentRecipe) }
-        .task(id: exposureTouches) {
-            guard adjustingExposure else { return }
+        .task(id: "\(exposureTouches) \(dialMoving)") {
+            guard adjustingExposure, !dialMoving else { return }
             try? await Task.sleep(for: .seconds(3))
             withAnimation { adjustingExposure = false }
         }
@@ -104,6 +106,8 @@ struct CameraView: View {
                 ExposureDial(value: camera.exposureBias, rotation: rotation) { ev in
                     camera.setExposureBias(to: ev)
                     exposureTouches += 1
+                } onMoving: { moving in
+                    dialMoving = moving
                 }
                 .transition(.opacity)
             } else {
@@ -255,6 +259,8 @@ private struct ExposureDial: View {
     let value: Float
     let rotation: Double
     let onChange: (Float) -> Void
+    /// True from the finger touching down until the dial stops gliding (iOS 18 and later).
+    let onMoving: (Bool) -> Void
     @State private var centred: Int?
 
     private let tick: CGFloat = 22
@@ -288,12 +294,14 @@ private struct ExposureDial: View {
             .contentMargins(.horizontal, max(0, (geo.size.width - tick) / 2), for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $centred, anchor: .center)
+            .reportsScrolling(onMoving)
         }
         .frame(height: 44)
         .overlay(alignment: .top) {
             Capsule().fill(Color.yellow).frame(width: 3, height: 20).offset(y: -3)
         }
         .onAppear { centred = ExposureCompensation.thirds(value) }
+        .onDisappear { onMoving(false) }
         .onChange(of: centred) { _, thirds in
             guard let thirds, thirds != ExposureCompensation.thirds(value) else { return }
             onChange(ExposureCompensation.ev(thirds: thirds))
@@ -312,6 +320,19 @@ private struct ExposureDial: View {
             let next = ExposureCompensation.thirds(value) + step
             guard ExposureCompensation.dialThirds.contains(next) else { return }
             onChange(ExposureCompensation.ev(thirds: next))
+        }
+    }
+}
+
+private extension View {
+    /// Calls `report` with whether the scroll view is being touched or still moving. iOS 17 has no
+    /// scroll phase, so there it never reports and the dial simply closes 3 seconds after its last change.
+    @ViewBuilder
+    func reportsScrolling(_ report: @escaping (Bool) -> Void) -> some View {
+        if #available(iOS 18.0, *) {
+            onScrollPhaseChange { _, phase in report(phase != .idle) }
+        } else {
+            self
         }
     }
 }

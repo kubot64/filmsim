@@ -143,6 +143,11 @@ final class CameraController: NSObject, ObservableObject {
         setExposureBias(exposureBias, steps: steps)
     }
 
+    /// Sets the compensation to `ev` (snapped to thirds and the device's range), from the dial.
+    func setExposureBias(to ev: Float) {
+        setExposureBias(ev, steps: 0)
+    }
+
     private func applyStoredExposureBias() {
         setExposureBias(ExposureCompensation.stored(), steps: 0)
     }

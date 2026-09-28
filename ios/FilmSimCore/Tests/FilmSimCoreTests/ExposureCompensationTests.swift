@@ -2,6 +2,20 @@ import XCTest
 @testable import FilmSimCore
 
 final class ExposureCompensationTests: XCTestCase {
+    func testDialCoversPlusMinusThreeInThirds() {
+        XCTAssertEqual(ExposureCompensation.dialThirds.count, 19)
+        XCTAssertEqual(ExposureCompensation.dialThirds.first, -9)
+        XCTAssertEqual(ExposureCompensation.dialThirds.last, 9)
+    }
+
+    func testThirdsRoundTrip() {
+        for t in ExposureCompensation.dialThirds {
+            XCTAssertEqual(ExposureCompensation.thirds(ExposureCompensation.ev(thirds: t)), t)
+        }
+        XCTAssertEqual(ExposureCompensation.thirds(-0.33), -1)
+        XCTAssertEqual(ExposureCompensation.thirds(0.67), 2)
+    }
+
     private let iPhoneRange: ClosedRange<Float> = -8...8
 
     func testStepsAreThirdsOfAStop() {

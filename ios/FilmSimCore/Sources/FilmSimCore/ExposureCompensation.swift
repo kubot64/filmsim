@@ -29,6 +29,18 @@ public enum ExposureCompensation {
         return min(max(ev, lower), upper)
     }
 
+    /// Every stop on the camera screen's dial (#56), in thirds: −9 (−3 EV) … +9 (+3 EV).
+    public static let dialThirds: [Int] = Array(-Int(limitEV) * stepsPerEV...Int(limitEV) * stepsPerEV)
+
+    /// `ev` as a whole number of thirds, the dial's position for it.
+    public static func thirds(_ ev: Float) -> Int {
+        Int((ev * Float(stepsPerEV)).rounded())
+    }
+
+    public static func ev(thirds: Int) -> Float {
+        Float(thirds) / Float(stepsPerEV)
+    }
+
     /// "±0", "+⅓", "−⅔", "+1", "−1⅓".
     public static func label(_ ev: Float) -> String {
         let thirds = Int((ev * Float(stepsPerEV)).rounded())

@@ -30,8 +30,10 @@ final class CameraController: NSObject, ObservableObject {
     @Published private(set) var exposureBias = ExposureCompensation.stored()
     /// Set by a long press on the preview; cleared by the next tap.
     @Published var isAEAFLocked = false
-    /// Where focus and exposure are measured (device point). The preview keeps its frame shown there (#46).
-    @Published private(set) var focusPoint = CGPoint(x: 0.5, y: 0.5)
+    /// Where focus and exposure are measured, as a point on the preview (0...1, top-left origin).
+    /// Kept in screen terms like a camera's AF point (#46): changing the focal length keeps the
+    /// frame where it is on screen and focuses on whatever is there now.
+    @Published private(set) var focusViewPoint = CGPoint(x: 0.5, y: 0.5)
 
     struct PendingCapture {
         /// The recipe and focal length when the shutter was pressed; a later change applies to the next shot.
@@ -65,13 +67,6 @@ final class CameraController: NSObject, ObservableObject {
             if let aspect = info.sensorAspect { sensorAspect = aspect }
             rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
             addPreviewOutput()
-            applyFocusAndExposure(
-                at: focusPoint,
-                focus: .continuousAutoFocus,
-                exposure: .continuousAutoExposure,
-                locked: false,
-                failureStatus: "ピントと露出を合わせられません"
-            )
             setFocalLength(FocalLength.stored())
             applyStoredExposureBias()
             reportBayerStatus(maxPhotoSize: info.maxPhotoSize, dimensionList: info.dimensionList)
@@ -112,16 +107,12 @@ final class CameraController: NSObject, ObservableObject {
     }
 
     /// Only the crop changes: the whole sensor is still captured, and the preview crops to match.
-    /// A focus point near the edge of a wider frame can fall outside the new crop; it moves to just
-    /// inside, so focus stays on something in the picture and the frame stays on screen.
+    /// The focus frame stays put on screen, so the device point under it is set again.
     func setFocalLength(_ newValue: FocalLength) {
         focalLength = newValue
         UserDefaults.standard.set(newValue.rawValue, forKey: FocalLength.storageKey)
         previewRenderer?.setFocalLength(newValue)
-        let inside = PreviewGeometry.clamped(focusPoint, into: previewCrop)
-        if inside != focusPoint {
-            focusAndExpose(at: inside, lock: isAEAFLocked)
-        }
+        focusAndExpose(atView: focusViewPoint, lock: isAEAFLocked)
     }
 
     /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.
@@ -152,13 +143,14 @@ final class CameraController: NSObject, ObservableObject {
         }
     }
 
-    /// `devicePoint` is in the device's normalized space (`PreviewGeometry`).
+    /// `viewPoint` is normalized to the preview (`PreviewGeometry`).
     /// A tap keeps focusing and metering at the point until the next tap, like a fixed AF point (#46);
     /// it does not go back to the centre when the scene changes. A long press (`lock`) measures once
     /// and holds until the next tap. The exposure compensation still applies while exposure is held.
-    func focusAndExpose(at devicePoint: CGPoint, lock: Bool) {
+    func focusAndExpose(atView viewPoint: CGPoint, lock: Bool) {
+        focusViewPoint = viewPoint
         applyFocusAndExposure(
-            at: devicePoint,
+            at: PreviewGeometry.devicePoint(fromView: viewPoint, crop: previewCrop),
             focus: lock ? .autoFocus : .continuousAutoFocus,
             exposure: lock ? .autoExpose : .continuousAutoExposure,
             locked: lock,
@@ -185,7 +177,6 @@ final class CameraController: NSObject, ObservableObject {
                     $0.exposureMode = exposure
                 }
             }
-            focusPoint = point
             isAEAFLocked = locked
         } catch {
             status = "\(failureStatus): \(error.localizedDescription)"

@@ -103,12 +103,10 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
 /// UIKit bridge for the live preview, the focus frame and the focus gestures.
 struct CameraPreview: UIViewRepresentable {
     let renderer: PreviewRenderer?
-    /// `PreviewGeometry.crop` for the current focal length.
-    var crop: CGRect
-    /// Where focus and exposure are measured (device point, `PreviewGeometry`).
+    /// Where focus and exposure are measured, normalized to the preview (0...1, top-left origin).
     var focusPoint: CGPoint
     var isLocked: Bool
-    /// Device point and whether it was a long press (AE/AF lock).
+    /// Tapped point, normalized like `focusPoint`, and whether it was a long press (AE/AF lock).
     var onFocus: (CGPoint, Bool) -> Void
 
     func makeUIView(context: Context) -> PreviewView {
@@ -122,7 +120,6 @@ struct CameraPreview: UIViewRepresentable {
     }
 
     private func update(_ v: PreviewView) {
-        v.crop = crop
         v.focusPoint = focusPoint
         v.isLocked = isLocked
         v.onFocus = onFocus
@@ -130,7 +127,6 @@ struct CameraPreview: UIViewRepresentable {
     }
 
     final class PreviewView: UIView {
-        var crop = PreviewGeometry.crop(sensorAspect: PreviewGeometry.defaultSensorAspect, focalLength: .default)
         var focusPoint = CGPoint(x: 0.5, y: 0.5)
         var isLocked = false
         var onFocus: ((CGPoint, Bool) -> Void)?
@@ -177,7 +173,7 @@ struct CameraPreview: UIViewRepresentable {
         private func focus(at location: CGPoint, lock: Bool) {
             let image = imageRect
             let p = CGPoint(x: (location.x - image.minX) / image.width, y: (location.y - image.minY) / image.height)
-            onFocus?(PreviewGeometry.devicePoint(fromView: p, crop: crop), lock)
+            onFocus?(CGPoint(x: min(max(p.x, 0), 1), y: min(max(p.y, 0), 1)), lock)
             focusMark.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
             UIView.animate(withDuration: 0.2) { self.focusMark.transform = .identity }
         }
@@ -192,11 +188,8 @@ struct CameraPreview: UIViewRepresentable {
         override func layoutSubviews() {
             super.layoutSubviews()
             metalView.frame = bounds
-            // Re-placed from the device point, so it stays on the subject when the focal length changes.
-            let v = PreviewGeometry.viewPoint(fromDevice: focusPoint, crop: crop)
             let image = imageRect
-            focusMark.center = CGPoint(x: image.minX + v.x * image.width, y: image.minY + v.y * image.height)
-            focusMark.isHidden = !(0...1).contains(v.x) || !(0...1).contains(v.y)
+            focusMark.center = CGPoint(x: image.minX + focusPoint.x * image.width, y: image.minY + focusPoint.y * image.height)
             focusMark.layer.borderColor = (isLocked ? UIColor.systemYellow : UIColor.white).cgColor
         }
     }

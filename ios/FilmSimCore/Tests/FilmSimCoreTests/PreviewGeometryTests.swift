@@ -38,42 +38,6 @@ final class PreviewGeometryTests: XCTestCase {
         assertPoint(PreviewGeometry.devicePoint(fromView: CGPoint(x: 0.5, y: 0.5), crop: full), CGPoint(x: 0.5, y: 0.5))
     }
 
-    func testViewPointInvertsDevicePoint() {
-        for focal in FocalLength.allCases {
-            let c = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: focal)
-            for p in [CGPoint(x: 0.1, y: 0.2), CGPoint(x: 0.9, y: 0.7), CGPoint(x: 0.5, y: 0.5)] {
-                let d = PreviewGeometry.devicePoint(fromView: p, crop: c)
-                assertPoint(PreviewGeometry.viewPoint(fromDevice: d, crop: c), p)
-            }
-        }
-    }
-
-    /// A device point picked at 24mm stays on the same subject at 35mm, so it moves outward in the view.
-    func testSameDevicePointMovesOutwardAtLongerFocal() {
-        let wide = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm24)
-        let tele = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm35)
-        let d = PreviewGeometry.devicePoint(fromView: CGPoint(x: 0.6, y: 0.4), crop: wide)
-        let v = PreviewGeometry.viewPoint(fromDevice: d, crop: tele)
-        XCTAssertGreaterThan(v.x, 0.6)
-        XCTAssertLessThan(v.y, 0.4)
-    }
-
-    /// A point at the edge of the 24mm frame is outside the 35mm crop; it moves to just inside.
-    func testClampedMovesAnEdgePointInsideALongerCrop() {
-        let wide = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm24)
-        let tele = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm35)
-        let edge = PreviewGeometry.devicePoint(fromView: CGPoint(x: 0.02, y: 0.98), crop: wide)
-        let c = PreviewGeometry.clamped(edge, into: tele)
-        let v = PreviewGeometry.viewPoint(fromDevice: c, crop: tele)
-        XCTAssertEqual(v.x, 0.05, accuracy: 1e-9)
-        XCTAssertEqual(v.y, 0.95, accuracy: 1e-9)
-    }
-
-    func testClampedKeepsAPointInside() {
-        let tele = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm35)
-        assertPoint(PreviewGeometry.clamped(CGPoint(x: 0.5, y: 0.45), into: tele), CGPoint(x: 0.5, y: 0.45))
-    }
-
     private func assertPoint(_ a: CGPoint, _ b: CGPoint, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(a.x, b.x, accuracy: 1e-9, file: file, line: line)
         XCTAssertEqual(a.y, b.y, accuracy: 1e-9, file: file, line: line)

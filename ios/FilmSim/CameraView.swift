@@ -19,11 +19,10 @@ struct CameraView: View {
         ZStack(alignment: .bottom) {
             CameraPreview(
                 renderer: camera.previewRenderer,
-                crop: camera.previewCrop,
-                focusPoint: camera.focusPoint,
+                focusPoint: camera.focusViewPoint,
                 isLocked: camera.isAEAFLocked
             ) { point, lock in
-                camera.focusAndExpose(at: point, lock: lock)
+                camera.focusAndExpose(atView: point, lock: lock)
             }
             .aspectRatio(2.0 / 3.0, contentMode: .fit)
             .ignoresSafeArea()

@@ -14,6 +14,10 @@ final class CameraController: NSObject, ObservableObject {
     private var device: AVCaptureDevice?
     /// How the phone is held, for the shot's orientation (#44). The interface stays portrait.
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var holdingObservation: NSKeyValueObservation?
+    /// Degrees the controls turn so they read upright however the phone is held (#43).
+    /// Follows gravity, so it works with the system rotation lock on too.
+    @Published private(set) var controlRotation = 0.0
     private var inflight: [Int64: PendingCapture] = [:]
 
     @Published var isReady = false
@@ -65,7 +69,12 @@ final class CameraController: NSObject, ObservableObject {
         case .success(let info):
             self.device = device
             if let aspect = info.sensorAspect { sensorAspect = aspect }
-            rotationCoordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+            let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+            rotationCoordinator = coordinator
+            holdingObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]) { [weak self] c, _ in
+                let rotation = HoldingOrientation.controlRotation(captureAngle: Double(c.videoRotationAngleForHorizonLevelCapture))
+                Task { @MainActor in self?.controlRotation = rotation }
+            }
             addPreviewOutput()
             setFocalLength(FocalLength.stored())
             applyStoredExposureBias()

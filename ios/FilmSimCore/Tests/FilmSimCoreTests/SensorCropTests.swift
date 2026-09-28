@@ -47,4 +47,18 @@ final class SensorCropTests: XCTestCase {
         XCTAssertEqual(portrait.extent.width, upright.extent.height, accuracy: 0.5)
         XCTAssertEqual(portrait.extent.height, upright.extent.width, accuracy: 0.5)
     }
+
+    /// Every way of holding the phone (#44) keeps the same crop; only the turn differs.
+    func testEveryHoldingKeepsTheSameCrop() {
+        let native = CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: 4032, height: 3024))
+        let crop = native.croppedThreeByTwo(focalLength: .mm28).extent
+        for orientation: CGImagePropertyOrientation in [.up, .down] {
+            XCTAssertEqual(native.croppedThreeByTwo(focalLength: .mm28, shot: orientation).extent.size, crop.size, "\(orientation)")
+        }
+        for orientation: CGImagePropertyOrientation in [.left, .right] {
+            let turned = native.croppedThreeByTwo(focalLength: .mm28, shot: orientation).extent.size
+            XCTAssertEqual(turned.width, crop.height, "\(orientation)")
+            XCTAssertEqual(turned.height, crop.width, "\(orientation)")
+        }
+    }
 }

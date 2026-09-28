@@ -197,15 +197,9 @@ struct ReviewView: View {
         guard let shot = currentShot else { return }
         let raw = showsRaw && withRaw.contains(shot.id)
         do {
-            let data: Data
-            if raw, let id = shot.dngAssetID {
-                data = try await LibraryRaw.load(assetID: id)
-            } else if let id = shot.heicAssetID,
-                      let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject {
-                data = try await Self.imageData(asset)
-            } else {
-                return
-            }
+            // Both read the asset's original file (`PHAssetResourceManager`), not a re-rendered image.
+            guard let id = raw ? shot.dngAssetID : shot.heicAssetID else { return }
+            let data = try await LibraryRaw.load(assetID: id)
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("Irocam-\(shot.id.uuidString.prefix(8)).\(raw ? "dng" : "heic")")
             try data.write(to: url, options: .atomic)
@@ -247,22 +241,6 @@ struct ReviewView: View {
         // Re-developed shots share their RAW, so deleting it changes what the others show too.
         refresh(showNewest: false)
         current = available.isEmpty ? nil : available[min(index, available.count - 1)].id
-    }
-
-    private static func imageData(_ asset: PHAsset) async throws -> Data {
-        let options = PHImageRequestOptions()
-        options.isNetworkAccessAllowed = true
-        options.version = .current
-        return try await withCheckedThrowingContinuation { continuation in
-            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, info in
-                if let data {
-                    continuation.resume(returning: data)
-                } else {
-                    let error = info?[PHImageErrorKey] as? Error ?? LibraryRaw.LoadError.noData
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
     }
 
     private struct ShareItem: Identifiable {

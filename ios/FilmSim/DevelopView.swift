@@ -37,8 +37,11 @@ struct DevelopView: View {
             VStack {
                 if let preview {
                     Image(uiImage: preview).resizable().scaledToFit()
-                } else {
+                } else if picksRaw {
                     ContentUnavailableView("RAW を選ぶ", systemImage: "photo", description: Text("左上の「RAW を選ぶ」から、写真ライブラリの DNG を選ぶ"))
+                } else if message == nil {
+                    // Opened with the RAW already loaded; the first develop is on its way.
+                    ProgressView("現像しています…").frame(maxHeight: .infinity)
                 }
                 if let message {
                     Text(message).font(.footnote).foregroundStyle(.secondary)

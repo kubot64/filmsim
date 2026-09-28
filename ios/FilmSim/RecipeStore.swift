@@ -48,23 +48,36 @@ final class RecipeStore: ObservableObject {
     }
 }
 
-/// Shots taken with the camera screen (`ShotLog`), kept in Application Support/Shots.json.
+/// Shots taken with the camera screen (`ShotLog`), kept in Application Support/Shots.json, with a
+/// small JPEG per shot in Application Support/Thumbnails for the camera's thumbnail. Keeping our own
+/// thumbnail means the camera screen never needs permission to read the photo library.
 @MainActor
 final class ShotStore: ObservableObject {
     static let shared = ShotStore()
 
     @Published private(set) var log: ShotLog
+    /// The newest shot's thumbnail, for the camera screen.
+    @Published private(set) var latestThumbnail: UIImage?
 
-    private let url: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("Shots.json")
-    }()
+    private static let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    private let url = base.appendingPathComponent("Shots.json")
+    private let thumbnails = base.appendingPathComponent("Thumbnails", isDirectory: true)
 
     private init() {
         log = ShotLog.decoded(from: (try? Data(contentsOf: url)) ?? Data())
+        latestThumbnail = log.newestFirst.lazy.compactMap { self.thumbnail(for: $0) }.first
     }
 
-    func append(_ shot: ShotRecord) {
+    func thumbnail(for shot: ShotRecord) -> UIImage? {
+        UIImage(contentsOfFile: thumbnails.appendingPathComponent("\(shot.id.uuidString).jpg").path)
+    }
+
+    func append(_ shot: ShotRecord, thumbnailJPEG: Data?) {
+        if let thumbnailJPEG {
+            try? FileManager.default.createDirectory(at: thumbnails, withIntermediateDirectories: true)
+            try? thumbnailJPEG.write(to: thumbnails.appendingPathComponent("\(shot.id.uuidString).jpg"), options: .atomic)
+            latestThumbnail = UIImage(data: thumbnailJPEG)
+        }
         log.append(shot)
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)

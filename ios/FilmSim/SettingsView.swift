@@ -3,6 +3,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage(AppPreferences.saveDNGKey) private var saveDNG = true
+    @AppStorage(AppPreferences.showStatusKey) private var showStatus = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var showsDevelop = false
     @AppStorage(ExposureCompensation.storageKey) private var exposureBias = 0.0
     @AppStorage(FocalLength.storageKey) private var focalLength = FocalLength.default
     @ObservedObject private var library = LUTLibrary.shared
@@ -43,6 +46,14 @@ struct SettingsView: View {
                     Text("開発中はオン。パイプラインが安定したらオフにする。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                Section {
+                    Toggle("カメラ画面に状態を出す", isOn: $showStatus)
+                    Button("DNG を選んで現像し直す") { showsDevelop = true }
+                } header: {
+                    Text("開発用")
+                } footer: {
+                    Text("状態は RAW のサイズや保存の結果。失敗したときは、オフでも短く知らせる。")
+                }
                 rawSupportSection
                 Section {
                     LabeledContent("バージョン", value: AppVersion.label)
@@ -55,6 +66,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showsDevelop) { DevelopView() }
         }
     }
 

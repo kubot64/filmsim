@@ -1,158 +1,224 @@
 import FilmSimCore
 import SwiftUI
 
-/// Live preview with the film simulation (close in look, not a match: #50), shutter, RAW capture.
-/// Tap the preview to focus and meter there until the next tap, long-press for AE/AF lock.
-/// The ± buttons (bottom right) set capture-time exposure compensation; the mm button steps the focal length.
-/// The screen is portrait-locked; the controls turn and move so they sit where the holder expects
-/// them in landscape too (#43). The shutter stays at the bottom centre.
-/// Shots are developed with the last-used recipe, shared with the develop screen (#8).
-/// The film simulation can be switched here; other settings come from the develop screen.
+/// The whole app opens here (#55): a full-screen camera, with Settings behind the gear.
+/// Live preview with the recipe's look (close in look, not a match: #50). Tap the preview to focus
+/// and meter there until the next tap, long-press for AE/AF lock.
+/// Below the preview, from the top: focal-length buttons, the recipe strip, and the row of
+/// thumbnail, shutter and exposure compensation. The screen is portrait-locked; held sideways,
+/// everything stays where it is and only labels and icons turn (like the system Camera app).
 struct CameraView: View {
     @StateObject private var camera = CameraController()
     @ObservedObject private var recipes = RecipeStore.shared
+    @ObservedObject private var shots = ShotStore.shared
+    @AppStorage(AppPreferences.showStatusKey) private var showStatus = false
+    @State private var showsSettings = false
+    @State private var shownNotice: CameraController.Notice?
 
     private var currentRecipe: Recipe { recipes.selected.recipe }
+    private var rotation: Double { camera.controlRotation }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
+            Color.black.ignoresSafeArea()
             CameraPreview(
                 renderer: camera.previewRenderer,
                 focusPoint: camera.focusViewPoint,
-                isLocked: camera.isAEAFLocked
+                isLocked: camera.isAEAFLocked,
+                controlRotation: rotation
             ) { point, lock in
                 camera.focusAndExpose(atView: point, lock: lock)
             }
             .aspectRatio(2.0 / 3.0, contentMode: .fit)
-            .ignoresSafeArea()
-            VStack(spacing: 8) {
-                Spacer()
-                // Kept clear of the exposure control at the bottom right (52pt wide, 16pt from the edge)
-                // on both sides so it stays centred; long messages wrap instead of running under "+".
-                Text(camera.status)
-                    .font(.footnote)
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 76)
-                Button {
-                    camera.capture(recipe: recipes.selected)
-                } label: {
-                    Circle().fill(.white).frame(width: 72, height: 72)
+            VStack(spacing: 0) {
+                topBar
+                if let shownNotice { noticeView(shownNotice.text) }
+                Spacer(minLength: 0)
+                if showStatus {
+                    Text(camera.status)
+                        .font(.caption2)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 4)
                 }
-                .disabled(!camera.isReady)
-            }
-            .padding(.bottom, 24)
-            HolderFrame(rotation: camera.controlRotation) {
-                recipeBar
-                    .padding(.top, 8)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                exposureControl
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                controls
             }
         }
-        .background(Color.black)
+        .animation(.easeInOut(duration: 0.25), value: rotation)
+        .sheet(isPresented: $showsSettings, onDismiss: camera.applyStoredSettings) { SettingsView() }
         .task { await camera.start() }
         .task(id: currentRecipe) { await camera.updatePreviewLook(currentRecipe) }
-    }
-
-    private var recipeBar: some View {
-        let summary = currentRecipe.adjustmentSummary
-        return VStack(spacing: 4) {
-            HStack(spacing: 8) {
-                filmSimulationMenu
-                Button {
-                    camera.setFocalLength(camera.focalLength.next)
-                } label: {
-                    Text(camera.focalLength.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.black.opacity(0.5), in: Capsule())
-                        .foregroundStyle(.white)
-                }
-                .accessibilityLabel("画角 \(camera.focalLength.displayName)")
-            }
-            if camera.isAEAFLocked {
-                Text("AE/AF LOCK")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.yellow, in: Capsule())
-                    .foregroundStyle(.black)
-            }
-            if !summary.isEmpty {
-                Text(summary)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(.black.opacity(0.4), in: Capsule())
-            }
+        .task(id: camera.notice) {
+            guard let notice = camera.notice else { return }
+            withAnimation { shownNotice = notice }
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation { if shownNotice == notice { shownNotice = nil } }
         }
     }
 
-    private var filmSimulationMenu: some View {
-        Menu {
-            RecipePicker(title: "レシピ")
-        } label: {
-            Label(recipes.selected.name, systemImage: "camera.filters")
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(.black.opacity(0.5), in: Capsule())
-                .foregroundStyle(.white)
+    private var topBar: some View {
+        HStack {
+            Spacer()
+            Button { showsSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.title3)
+                    .foregroundStyle(.white)
+                    .rotationEffect(.degrees(rotation))
+                    .frame(width: 44, height: 44)
+                    .background(.black.opacity(0.35), in: Circle())
+            }
+            .accessibilityLabel("設定")
         }
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
     }
 
-    /// Capture-time exposure compensation, 1/3 EV per press. Stacked so it fits beside the shutter.
-    /// Each button is 44pt, and taps between them are caught here so they do not reach the
+    private func noticeView(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.7), in: Capsule())
+            .rotationEffect(.degrees(rotation))
+            .padding(.top, 8)
+            .transition(.opacity)
+    }
+
+    /// Taps anywhere on this panel stay here, so a near miss on a button does not reach the
     /// preview and move the focus.
-    private var exposureControl: some View {
-        VStack(spacing: 0) {
-            Button { camera.stepExposureBias(by: 1) } label: {
-                Image(systemName: "plus").frame(width: 44, height: 44)
+    private var controls: some View {
+        VStack(spacing: 10) {
+            focalLengthButtons
+            RecipeStrip(recipes: recipes.book.visible, selection: recipes.selection, rotation: rotation)
+            HStack {
+                thumbnail
+                Spacer()
+                shutter
+                Spacer()
+                exposureButton
             }
-            .accessibilityLabel("露出補正を上げる")
-            Text(ExposureCompensation.label(camera.exposureBias))
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .frame(minWidth: 44, minHeight: 24)
-            Button { camera.stepExposureBias(by: -1) } label: {
-                Image(systemName: "minus").frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("露出補正を下げる")
+            .padding(.horizontal, 28)
         }
-        .font(.title3.weight(.semibold))
-        .foregroundStyle(camera.exposureBias == 0 ? Color.white : Color.yellow)
-        .padding(.vertical, 4)
-        .padding(.horizontal, 4)
-        .background(.black.opacity(0.5), in: Capsule())
-        .contentShape(Capsule())
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .background(.black.opacity(0.35))
+        .contentShape(Rectangle())
         .onTapGesture {}
+    }
+
+    private var focalLengthButtons: some View {
+        HStack(spacing: 8) {
+            ForEach(FocalLength.allCases, id: \.self) { focal in
+                let selected = focal == camera.focalLength
+                Button { camera.setFocalLength(focal) } label: {
+                    Text("\(focal.rawValue)")
+                        .font(.footnote.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(selected ? Color.yellow : Color.white)
+                        .rotationEffect(.degrees(rotation))
+                        .frame(width: 40, height: 32)
+                        .background(.black.opacity(selected ? 0.6 : 0.3), in: Capsule())
+                }
+                .accessibilityLabel("画角 \(focal.displayName)")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+    }
+
+    /// The last shot. Opens the review screen in #57.
+    private var thumbnail: some View {
+        Group {
+            if let image = shots.latestThumbnail {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                Color.clear
+            }
+        }
+        .frame(width: 52, height: 52)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.6), lineWidth: 1))
+        .rotationEffect(.degrees(rotation))
+        .accessibilityLabel("最後に撮った写真")
+    }
+
+    private var shutter: some View {
+        Button {
+            camera.capture(recipe: recipes.selected)
+        } label: {
+            ZStack {
+                Circle().stroke(.white, lineWidth: 4).frame(width: 76, height: 76)
+                Circle().fill(.white).frame(width: 64, height: 64)
+            }
+        }
         .disabled(!camera.isReady)
+        .accessibilityLabel("シャッター")
+    }
+
+    /// Shows the capture-time exposure compensation. Turns into a dial in #56; until then it is
+    /// changed in Settings.
+    private var exposureButton: some View {
+        Text(ExposureCompensation.label(camera.exposureBias))
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(camera.exposureBias == 0 ? Color.white : Color.yellow)
+            .rotationEffect(.degrees(rotation))
+            .frame(width: 52, height: 52)
+            .background(.black.opacity(0.4), in: Circle())
+            .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 1))
+            .accessibilityLabel("露出補正 \(ExposureCompensation.label(camera.exposureBias))")
     }
 }
 
-/// Lays `content` out in the frame the holder sees, then turns it by `rotation`, so alignments
-/// such as `.bottomTrailing` mean the holder's bottom right even with the phone sideways.
-private struct HolderFrame<Content: View>: View {
+/// The saved recipes in a row that scrolls sideways; the one in the middle is the one in use.
+/// Tapping a name scrolls it to the middle. Held sideways, each name turns to read upright and
+/// the row gets taller to fit it.
+private struct RecipeStrip: View {
+    let recipes: [SavedRecipe]
+    @Binding var selection: UUID
     let rotation: Double
-    @ViewBuilder let content: Content
+    @State private var centred: UUID?
 
     var body: some View {
+        let sideways = HoldingOrientation.isSideways(rotation)
+        let item = sideways ? CGSize(width: 44, height: 100) : CGSize(width: 108, height: 34)
         GeometryReader { geo in
-            let sideways = HoldingOrientation.isSideways(rotation)
-            ZStack { content }
-                .frame(
-                    width: sideways ? geo.size.height : geo.size.width,
-                    height: sideways ? geo.size.width : geo.size.height
-                )
-                .rotationEffect(.degrees(rotation))
-                .frame(width: geo.size.width, height: geo.size.height)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(recipes) { recipe in
+                        let selected = recipe.id == selection
+                        Text(recipe.name)
+                            .font(.subheadline.weight(selected ? .bold : .regular))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .foregroundStyle(selected ? Color.yellow : Color.white.opacity(0.8))
+                            .frame(width: 100, height: 30)
+                            .rotationEffect(.degrees(rotation))
+                            .frame(width: item.width, height: item.height)
+                            .contentShape(Rectangle())
+                            .onTapGesture { withAnimation { centred = recipe.id } }
+                            .id(recipe.id)
+                            .accessibilityAddTraits(selected ? .isSelected : [])
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .contentMargins(.horizontal, max(0, (geo.size.width - item.width) / 2), for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $centred, anchor: .center)
         }
-        .animation(.easeInOut(duration: 0.25), value: rotation)
+        .frame(height: item.height)
+        .onAppear { centred = selection }
+        .onChange(of: centred) { _, id in
+            if let id, id != selection { selection = id }
+        }
+        .onChange(of: selection) { _, id in
+            if centred != id { withAnimation { centred = id } }
+        }
+        .sensoryFeedback(.selection, trigger: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("レシピ")
     }
 }

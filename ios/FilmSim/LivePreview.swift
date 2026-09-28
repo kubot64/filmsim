@@ -121,6 +121,8 @@ struct CameraPreview: UIViewRepresentable {
     /// Where focus and exposure are measured, normalized to the preview (0...1, top-left origin).
     var focusPoint: CGPoint
     var isLocked: Bool
+    /// Degrees the AE/AF LOCK label turns to read upright (`HoldingOrientation`).
+    var controlRotation: Double
     /// Tapped point, normalized like `focusPoint`, and whether it was a long press (AE/AF lock).
     var onFocus: (CGPoint, Bool) -> Void
 
@@ -137,6 +139,7 @@ struct CameraPreview: UIViewRepresentable {
     private func update(_ v: PreviewView) {
         v.focusPoint = focusPoint
         v.isLocked = isLocked
+        v.controlRotation = controlRotation
         v.onFocus = onFocus
         v.setNeedsLayout()
     }
@@ -144,8 +147,11 @@ struct CameraPreview: UIViewRepresentable {
     final class PreviewView: UIView {
         var focusPoint = CGPoint(x: 0.5, y: 0.5)
         var isLocked = false
+        var controlRotation = 0.0
         var onFocus: ((CGPoint, Bool) -> Void)?
         private let metalView: MTKView
+        /// Shown next to the frame while locked, on the holder's upper side.
+        private let lockLabel = UILabel()
         /// Always shown where focus is measured (#46): white while following, yellow while locked.
         private let focusMark = UIView(frame: CGRect(x: 0, y: 0, width: 72, height: 72))
 
@@ -169,6 +175,16 @@ struct CameraPreview: UIViewRepresentable {
             focusMark.layer.borderWidth = 1.5
             focusMark.isUserInteractionEnabled = false
             addSubview(focusMark)
+
+            lockLabel.text = " AE/AF LOCK "
+            lockLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+            lockLabel.textColor = .black
+            lockLabel.backgroundColor = .systemYellow
+            lockLabel.layer.cornerRadius = 4
+            lockLabel.layer.masksToBounds = true
+            lockLabel.sizeToFit()
+            lockLabel.isHidden = true
+            addSubview(lockLabel)
 
             let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress))
             let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
@@ -201,6 +217,17 @@ struct CameraPreview: UIViewRepresentable {
             let image = PreviewGeometry.imageRect(in: bounds)
             focusMark.center = CGPoint(x: image.minX + focusPoint.x * image.width, y: image.minY + focusPoint.y * image.height)
             focusMark.layer.borderColor = (isLocked ? UIColor.systemYellow : UIColor.white).cgColor
+
+            // Above the frame as the holder sees it; below it if that would leave the view.
+            lockLabel.isHidden = !isLocked
+            let turn = CGAffineTransform(rotationAngle: controlRotation * .pi / 180)
+            lockLabel.transform = turn
+            let gap = focusMark.bounds.height / 2 + 12
+            let above = CGPoint(x: 0, y: -gap).applying(turn)
+            let candidate = CGPoint(x: focusMark.center.x + above.x, y: focusMark.center.y + above.y)
+            lockLabel.center = bounds.insetBy(dx: 40, dy: 12).contains(candidate)
+                ? candidate
+                : CGPoint(x: focusMark.center.x - above.x, y: focusMark.center.y - above.y)
         }
     }
 }

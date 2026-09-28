@@ -1,15 +1,9 @@
-import FilmSimCore
 import SwiftUI
 
+/// The app is the camera (#55). Settings opens from its gear; re-developing a DNG is a
+/// development tool inside Settings.
 struct ContentView: View {
     var body: some View {
-        TabView {
-            CameraView()
-                .tabItem { Label("Camera", systemImage: "camera") }
-            DevelopView()
-                .tabItem { Label("Develop", systemImage: "slider.horizontal.3") }
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gear") }
-        }
+        CameraView()
     }
 }

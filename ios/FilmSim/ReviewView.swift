@@ -5,7 +5,8 @@ import UIKit
 
 /// The photos taken with this app (#57), opened from the camera's thumbnail. Newest first; swipe
 /// sideways between them, swipe down to go back to the camera. Each shows the recipe and focal
-/// length it was taken with. Share, delete, open in Photos; editing is left to Photos.
+/// length it was taken with. Share and delete; editing is left to Photos, which the person opens
+/// themselves (there is no public way to open Photos on one photo).
 /// The screen says 写真 for the HEIC and RAW for the DNG, the word Photos also marks it with.
 /// A shot whose RAW is still in the library gets a 写真 / RAW switch; showing the RAW offers
 /// re-developing it (a development tool).
@@ -129,7 +130,6 @@ struct ReviewView: View {
             }
             HStack(spacing: 36) {
                 barButton("共有", systemImage: "square.and.arrow.up") { Task { await share() } }
-                barButton("写真アプリ", systemImage: "photo.on.rectangle") { openPhotos() }
                 if let shot = currentShot, showsRaw, withRaw.contains(shot.id) {
                     barButton("現像し直す", systemImage: "slider.horizontal.3") { Task { await redevelop(shot) } }
                 }
@@ -207,11 +207,6 @@ struct ReviewView: View {
         } catch {
             message = "共有できません：\(error.localizedDescription)"
         }
-    }
-
-    private func openPhotos() {
-        // Photos has no documented link to one photo; this opens the app.
-        if let url = URL(string: "photos-redirect://") { UIApplication.shared.open(url) }
     }
 
     private func redevelop(_ shot: ShotRecord) async {

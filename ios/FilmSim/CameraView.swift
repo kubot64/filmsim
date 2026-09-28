@@ -57,13 +57,14 @@ struct CameraView: View {
         .task(id: currentRecipe) { await camera.updatePreviewLook(currentRecipe) }
         .task(id: "\(exposureTouches) \(dialMoving)") {
             guard adjustingExposure, !dialMoving else { return }
-            try? await Task.sleep(for: .seconds(3))
+            // A newer touch cancels this wait; a cancelled sleep throws, and must not close the dial.
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
             withAnimation { adjustingExposure = false }
         }
         .task(id: camera.notice) {
             guard let notice = camera.notice else { return }
             withAnimation { shownNotice = notice }
-            try? await Task.sleep(for: .seconds(3))
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
             withAnimation { if shownNotice == notice { shownNotice = nil } }
         }
     }

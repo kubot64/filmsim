@@ -21,6 +21,10 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
     private var pipeline: Pipeline?
     private var recipe = Recipe()
     private var focalLength = FocalLength.stored()
+    /// Drawn once per camera frame. The camera drops below 30fps when exposure reaches about 1/30s
+    /// (a dark metering point), and a fixed 30fps redraw then repeats frames unevenly and judders.
+    weak var view: MTKView?
+    private var drawPending = false
 
     private static let linearP3 = CGColorSpace(name: CGColorSpace.linearDisplayP3)!
     private static let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
@@ -52,7 +56,16 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let image = CIImage(cvPixelBuffer: buffer)
-        lock.withLock { frame = image }
+        let shouldDraw = lock.withLock { () -> Bool in
+            frame = image
+            defer { drawPending = true }
+            return !drawPending
+        }
+        guard shouldDraw else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.lock.withLock { self?.drawPending = false }
+            self?.view?.draw()
+        }
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
@@ -141,9 +154,12 @@ struct CameraPreview: UIViewRepresentable {
             clipsToBounds = true
 
             metalView.delegate = renderer
+            renderer?.view = metalView
             metalView.colorPixelFormat = .bgra8Unorm
             metalView.framebufferOnly = false
-            metalView.preferredFramesPerSecond = 30
+            // Redrawn by `PreviewRenderer` when a frame arrives.
+            metalView.isPaused = true
+            metalView.enableSetNeedsDisplay = false
             metalView.isUserInteractionEnabled = false
             (metalView.layer as? CAMetalLayer)?.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
             addSubview(metalView)

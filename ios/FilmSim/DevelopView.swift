@@ -4,8 +4,22 @@ import SwiftUI
 
 /// Pick a DNG from the library, re-develop with a recipe, save.
 struct DevelopView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var picked: PhotosPickerItem?
     @State private var rawData: Data?
+
+    /// Only when opened without a DNG (from Settings) is there a button to pick one.
+    private let picksRaw: Bool
+    /// The shot being re-developed, when opened from the review screen. Saves then join the shot
+    /// log as new shots of the same RAW, so they show in the review screen next to the original.
+    private let source: ShotRecord?
+
+    /// `rawData` opens with that DNG already loaded, for re-developing `source` from the review screen.
+    init(rawData: Data? = nil, source: ShotRecord? = nil) {
+        _rawData = State(initialValue: rawData)
+        picksRaw = rawData == nil
+        self.source = source
+    }
     @State private var preview: UIImage?
     /// The selected saved recipe; the sliders edit it, and the camera develops new shots with it.
     @ObservedObject private var recipes = RecipeStore.shared
@@ -23,45 +37,59 @@ struct DevelopView: View {
             VStack {
                 if let preview {
                     Image(uiImage: preview).resizable().scaledToFit()
-                } else {
-                    ContentUnavailableView("DNG を選択", systemImage: "photo")
+                } else if picksRaw {
+                    ContentUnavailableView("RAW を選ぶ", systemImage: "photo", description: Text("左上の「RAW を選ぶ」から、写真ライブラリの DNG を選ぶ"))
+                } else if message == nil {
+                    // Opened with the RAW already loaded; the first develop is on its way.
+                    ProgressView("現像しています…").frame(maxHeight: .infinity)
                 }
                 if let message {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
                 }
                 Form {
-                    LookPicker(title: "Look", recipe: recipe)
-                    Picker("Focal length", selection: $focalLength) {
+                    Section {
+                    LookPicker(title: "ルック", recipe: recipe)
+                    Picker("画角", selection: $focalLength) {
                         ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
                     }
-                    slider("Exposure", value: recipe.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
+                    slider("明るさ", value: recipe.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
                     slider("WB R", value: recipe.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
                     slider("WB B", value: recipe.wbShiftB, range: -9...9, step: 1, format: "%+.0f")
-                    slider("Highlight", value: recipe.highlight, range: -2...4, step: 1, format: "%+.0f")
-                    slider("Shadow", value: recipe.shadow, range: -2...4, step: 1, format: "%+.0f")
-                    Picker("Grain", selection: recipe.grainStrength) {
-                        ForEach(GrainStrength.allCases, id: \.self) { Text($0.rawValue) }
+                    slider("ハイライト", value: recipe.highlight, range: -2...4, step: 1, format: "%+.0f")
+                    slider("シャドウ", value: recipe.shadow, range: -2...4, step: 1, format: "%+.0f")
+                    Picker("グレイン", selection: recipe.grainStrength) {
+                        ForEach(GrainStrength.allCases, id: \.self) { Text($0.label) }
                     }
-                    Picker("Grain size", selection: recipe.grainSize) {
-                        ForEach(GrainSize.allCases, id: \.self) { Text($0.rawValue) }
+                    Picker("グレインの大きさ", selection: recipe.grainSize) {
+                        ForEach(GrainSize.allCases, id: \.self) { Text($0.label) }
+                    }
+                    } footer: {
+                        Text("「写真を保存」で、この設定で現像した写真を写真ライブラリに新しく足す。元の写真と RAW はそのまま残る。ここで変えた調整は、選んでいるレシピに入り、カメラの撮影にも効く。")
                     }
                 }
             }
-            .navigationTitle("Develop")
+            .navigationTitle("現像し直す")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    PhotosPicker(
-                        "Open",
-                        selection: $picked,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    )
+                // Opened full screen from the review screen, where swiping down does not close it.
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { dismiss() }
+                }
+                if picksRaw {
+                    ToolbarItem(placement: .topBarLeading) {
+                        PhotosPicker(
+                            "RAW を選ぶ",
+                            selection: $picked,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        )
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") { Task { await save() } }.disabled(rawData == nil)
+                    Button("写真を保存") { Task { await save() } }.disabled(rawData == nil)
                 }
             }
             .onChange(of: picked) { _, item in Task { await load(item) } }
+            .onAppear { scheduleRender() }
             .onChange(of: recipes.selected.recipe) { _, _ in scheduleRender() }
             .onChange(of: focalLength) { _, _ in scheduleRender() }
         }
@@ -132,9 +160,36 @@ struct DevelopView: View {
 
     private func save() async {
         guard let rawData else { return }
+        let recipe = recipes.selected
+        let focal = focalLength
         let result = await Developer.shared.developAndSave(
-            rawData: rawData, saveDNG: false, recipe: recipe.wrappedValue, focalLength: focalLength
+            rawData: rawData, saveDNG: false, recipe: recipe.recipe, focalLength: focal
         )
+        if let source, let heic = result.heicAssetID {
+            ShotStore.shared.append(ShotRecord(
+                date: Date(), heicAssetID: heic, dngAssetID: source.dngAssetID,
+                recipeName: recipe.name, recipe: recipe.recipe, focalLength: focal
+            ), thumbnailJPEG: result.thumbnailJPEG)
+        }
         message = result.message
+    }
+}
+
+private extension GrainStrength {
+    var label: String {
+        switch self {
+        case .off: return "なし"
+        case .weak: return "弱"
+        case .strong: return "強"
+        }
+    }
+}
+
+private extension GrainSize {
+    var label: String {
+        switch self {
+        case .small: return "小"
+        case .large: return "大"
+        }
     }
 }

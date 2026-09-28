@@ -50,6 +50,10 @@ public struct ShotLog: Codable, Equatable, Sendable {
         shots.append(shot)
     }
 
+    public mutating func remove(id: UUID) {
+        shots.removeAll { $0.id == id }
+    }
+
     /// Newest first, as the review screen shows them.
     public var newestFirst: [ShotRecord] { shots.reversed() }
 

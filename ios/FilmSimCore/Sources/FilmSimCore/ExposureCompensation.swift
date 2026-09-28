@@ -2,7 +2,7 @@ import Foundation
 
 /// Capture-time exposure compensation, set on the camera before the shot.
 /// Unlike `Recipe.exposureEV` it changes the light reaching the sensor, so a minus value
-/// keeps highlights that would otherwise clip (OPEN_QUESTIONS "ハイライトの余裕").
+/// keeps highlights that would otherwise clip (issue #68).
 /// 1/3 EV steps up to ±3, like the X100 dial.
 public enum ExposureCompensation {
     /// UserDefaults entry, shared by the camera and settings screens. Kept across launches.

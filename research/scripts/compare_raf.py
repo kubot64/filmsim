@@ -5,7 +5,7 @@ Example:
         --raf samples/DSCF0001.RAF --jpeg samples/DSCF0001.JPG \
         --lut luts/official/FLog2_to_PROVIA_65grid_V.1.00.cube --sweep-ev -2 2 0.25
 
-The EV sweep is how the exposure anchor gets decided (docs/OPEN_QUESTIONS.md).
+The EV sweep is how the exposure anchor gets decided (issue #6).
 
 --engine ciraw linearises with CIRAWFilter (the iOS app's engine, macOS only)
 instead of LibRaw. CIRAWFilter applies the file's baseline exposure, so its best

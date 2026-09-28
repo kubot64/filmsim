@@ -6,7 +6,8 @@ import UIKit
 /// The photos taken with this app (#57), opened from the camera's thumbnail. Newest first; swipe
 /// sideways between them, swipe down to go back to the camera. Each shows the recipe and focal
 /// length it was taken with. Share, delete, open in Photos; editing is left to Photos.
-/// A shot whose DNG is still in the library can be re-developed (a development tool).
+/// The screen says 写真 for the HEIC and RAW for the DNG, the word Photos also marks it with.
+/// A shot whose RAW is still in the library is marked, and can be re-developed (a development tool).
 struct ReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var shots = ShotStore.shared
@@ -18,6 +19,10 @@ struct ReviewView: View {
     @State private var sharing: ShareItem?
     @State private var developing: DevelopItem?
     @State private var message: String?
+    /// Shots whose RAW (DNG) is still in the library.
+    @State private var withRaw: Set<UUID> = []
+    /// Set while asking whether to delete the RAW too.
+    @State private var confirmingDelete: ShotRecord?
 
     private enum Access { case checking, allowed, denied }
 
@@ -63,12 +68,26 @@ struct ReviewView: View {
         .task { await load() }
         .sheet(item: $sharing) { ActivityView(items: [$0.url]) }
         .fullScreenCover(item: $developing) { DevelopView(rawData: $0.data) }
+        // In the library the photo and its RAW are two items, so Photos would say "2 photos".
+        // Ask first, in words that match what the screen shows.
+        .confirmationDialog(
+            "この写真には RAW（元データ）も保存されています",
+            isPresented: Binding(get: { confirmingDelete != nil }, set: { if !$0 { confirmingDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: confirmingDelete
+        ) { shot in
+            Button("写真と RAW を削除（2 枚）", role: .destructive) { Task { await delete(shot, includingRaw: true) } }
+            Button("写真だけ削除", role: .destructive) { Task { await delete(shot, includingRaw: false) } }
+            Button("キャンセル", role: .cancel) {}
+        } message: { _ in
+            Text("写真だけを消すと、RAW は写真アプリに残ります。このあと iOS の確認が出ます。")
+        }
     }
 
     private var pages: some View {
         TabView(selection: $current) {
             ForEach(available) { shot in
-                ShotPage(shot: shot).tag(Optional(shot.id))
+                ShotPage(shot: shot, hasRaw: withRaw.contains(shot.id)).tag(Optional(shot.id))
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -94,10 +113,17 @@ struct ReviewView: View {
             HStack(spacing: 36) {
                 barButton("共有", systemImage: "square.and.arrow.up") { Task { await share() } }
                 barButton("写真アプリ", systemImage: "photo.on.rectangle") { openPhotos() }
-                if let shot = currentShot, shot.dngAssetID.map(Self.exists) == true {
+                if let shot = currentShot, withRaw.contains(shot.id) {
                     barButton("現像し直す", systemImage: "slider.horizontal.3") { Task { await redevelop(shot) } }
                 }
-                barButton("削除", systemImage: "trash", role: .destructive) { Task { await delete() } }
+                barButton("削除", systemImage: "trash", role: .destructive) {
+                    guard let shot = currentShot else { return }
+                    if withRaw.contains(shot.id) {
+                        confirmingDelete = shot
+                    } else {
+                        Task { await delete(shot, includingRaw: false) }
+                    }
+                }
             }
         }
         .foregroundStyle(.white)
@@ -132,6 +158,7 @@ struct ReviewView: View {
     private func load() async {
         guard await LibraryRaw.canRead() else { access = .denied; return }
         available = shots.log.newestFirst.filter { $0.heicAssetID.map(Self.exists) == true }
+        withRaw = Set(available.filter { $0.dngAssetID.map(Self.exists) == true }.map(\.id))
         current = available.first?.id
         access = .allowed
     }
@@ -168,11 +195,10 @@ struct ReviewView: View {
         }
     }
 
-    /// Deletes the HEIC and, if saved, the DNG. Photos asks for confirmation and keeps them in
-    /// Recently Deleted.
-    private func delete() async {
-        guard let shot = currentShot else { return }
-        let ids = [shot.heicAssetID, shot.dngAssetID].compactMap { $0 }
+    /// Deletes the HEIC and, with `includingRaw`, the DNG. Photos asks for confirmation and keeps
+    /// them in Recently Deleted. The shot leaves the review screen either way.
+    private func delete(_ shot: ShotRecord, includingRaw: Bool) async {
+        let ids = [shot.heicAssetID, includingRaw ? shot.dngAssetID : nil].compactMap { $0 }
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
         do {
             try await PHPhotoLibrary.shared().performChanges {
@@ -218,6 +244,7 @@ struct ReviewView: View {
 /// One photo, loaded at screen size when its page comes up.
 private struct ShotPage: View {
     let shot: ShotRecord
+    let hasRaw: Bool
     @State private var image: UIImage?
 
     var body: some View {
@@ -232,6 +259,18 @@ private struct ShotPage: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
+            .overlay(alignment: .topTrailing) {
+                if hasRaw {
+                    Text("RAW")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
+                        .padding(16)
+                        .accessibilityLabel("RAW も保存済み")
+                }
+            }
             .task(id: shot.id) { image = await load(size: geo.size) }
         }
         .accessibilityLabel("\(shot.recipeName)、\(shot.focalLength.displayName)の写真")

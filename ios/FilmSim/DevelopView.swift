@@ -4,6 +4,7 @@ import SwiftUI
 
 /// Pick a DNG from the library, re-develop with a recipe, save.
 struct DevelopView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var picked: PhotosPickerItem?
     @State private var rawData: Data?
 
@@ -54,6 +55,10 @@ struct DevelopView: View {
             }
             .navigationTitle("Develop")
             .toolbar {
+                // Opened full screen from the review screen, where swiping down does not close it.
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { dismiss() }
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     PhotosPicker(
                         "Open",

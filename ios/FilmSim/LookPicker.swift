@@ -1,7 +1,7 @@
 import FilmSimCore
 import SwiftUI
 
-/// Built-in looks first, then the imported LUTs. Shared by the camera, develop and settings screens.
+/// Built-in looks first, then the imported LUTs. The develop screen uses it to change the selected recipe's look.
 /// Shows the look that will actually render (`effectiveLook`), so a deleted import reads as the
 /// built-in simulation it falls back to.
 struct LookPicker: View {
@@ -29,16 +29,6 @@ struct LookPicker: View {
                     }
                 }
             }
-        }
-    }
-}
-
-extension LUTLibrary {
-    /// A look's label: built-ins by their generic name, imports by the name the user gave them.
-    func title(for look: Look) -> String {
-        switch look {
-        case .builtIn(let sim): return sim.displayName
-        case .imported(let name): return displayName(for: name)
         }
     }
 }

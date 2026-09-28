@@ -3,7 +3,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage(AppPreferences.saveDNGKey) private var saveDNG = true
-    @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
     @AppStorage(ExposureCompensation.storageKey) private var exposureBias = 0.0
     @AppStorage(FocalLength.storageKey) private var focalLength = FocalLength.default
     @ObservedObject private var library = LUTLibrary.shared
@@ -15,13 +14,11 @@ struct SettingsView: View {
     @State private var rawSupport: [CameraRawSupport]?
     @State private var isSurveying = false
 
-    private var recipe: Binding<Recipe> { Recipe.binding($storedRecipe) }
-
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    LookPicker(title: "フィルムシミュレーション", recipe: recipe)
+                    RecipePicker(title: "レシピ")
                     Picker("画角", selection: $focalLength) {
                         ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
                     }

@@ -41,7 +41,7 @@ final class CameraController: NSObject, ObservableObject {
 
     struct PendingCapture {
         /// The recipe and focal length when the shutter was pressed; a later change applies to the next shot.
-        let recipe: Recipe
+        let recipe: SavedRecipe
         let focalLength: FocalLength
         var rawData: Data?
         var processedData: Data?
@@ -194,7 +194,7 @@ final class CameraController: NSObject, ObservableObject {
         }
     }
 
-    func capture(recipe: Recipe) {
+    func capture(recipe: SavedRecipe) {
         guard let rawType = output.bayerRAWFormats.first else {
             status = "Bayer RAW のピクセルフォーマットがありません"; return
         }
@@ -233,9 +233,15 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
             let saved = await Developer.shared.developAndSave(
                 rawData: raw,
                 saveDNG: UserDefaults.standard.bool(forKey: AppPreferences.saveDNGKey),
-                recipe: pending.recipe,
+                recipe: pending.recipe.recipe,
                 focalLength: pending.focalLength
             )
+            if saved.savedAnything {
+                ShotStore.shared.append(ShotRecord(
+                    date: Date(), heicAssetID: saved.heicAssetID, dngAssetID: saved.dngAssetID,
+                    recipeName: pending.recipe.name, recipe: pending.recipe.recipe, focalLength: pending.focalLength
+                ))
+            }
             self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
         }
     }

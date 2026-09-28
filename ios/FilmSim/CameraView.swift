@@ -10,12 +10,9 @@ import SwiftUI
 /// The film simulation can be switched here; other settings come from the develop screen.
 struct CameraView: View {
     @StateObject private var camera = CameraController()
-    @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
-    /// Observed so the menu label updates when an imported LUT is deleted.
-    @ObservedObject private var library = LUTLibrary.shared
+    @ObservedObject private var recipes = RecipeStore.shared
 
-    private var recipe: Binding<Recipe> { Recipe.binding($storedRecipe) }
-    private var currentRecipe: Recipe { recipe.wrappedValue }
+    private var currentRecipe: Recipe { recipes.selected.recipe }
 
     var body: some View {
         ZStack {
@@ -38,7 +35,7 @@ struct CameraView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 76)
                 Button {
-                    camera.capture(recipe: currentRecipe)
+                    camera.capture(recipe: recipes.selected)
                 } label: {
                     Circle().fill(.white).frame(width: 72, height: 72)
                 }
@@ -99,12 +96,9 @@ struct CameraView: View {
 
     private var filmSimulationMenu: some View {
         Menu {
-            LookPicker(title: "Look", recipe: recipe)
+            RecipePicker(title: "レシピ")
         } label: {
-            Label(
-                library.title(for: currentRecipe.effectiveLook(importedNames: library.names)),
-                systemImage: "camera.filters"
-            )
+            Label(recipes.selected.name, systemImage: "camera.filters")
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)

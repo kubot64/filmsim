@@ -88,6 +88,8 @@ final class CameraController: NSObject, ObservableObject {
     /// Film simulation for the live preview. Loads the LUT the same way the develop step does.
     func updatePreviewLook(_ recipe: Recipe) async {
         let pipeline = await Developer.shared.pipeline(for: recipe)
+        // A later recipe may have started while this LUT loaded; `.task(id:)` cancelled this one.
+        guard !Task.isCancelled else { return }
         previewRenderer?.setLook(pipeline, recipe: recipe)
     }
 

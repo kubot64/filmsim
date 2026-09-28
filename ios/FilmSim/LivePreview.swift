@@ -2,6 +2,7 @@ import AVFoundation
 import CoreImage
 import FilmSimCore
 import MetalKit
+import os
 import SwiftUI
 
 /// Draws camera frames through the film simulation for the live preview (#50).
@@ -28,12 +29,14 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
 
     private static let linearP3 = CGColorSpace(name: CGColorSpace.linearDisplayP3)!
     private static let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
+    private static let log = Logger(subsystem: "com.morikubo.FilmSim", category: "PreviewRenderer")
 
     init?(device: MTLDevice? = MTLCreateSystemDefaultDevice()) {
         guard let device, let commandQueue = device.makeCommandQueue() else { return nil }
         self.device = device
         self.commandQueue = commandQueue
-        context = CIContext(mtlDevice: device, options: [
+        // The same queue as the command buffers the frames are drawn and presented with.
+        context = CIContext(mtlCommandQueue: commandQueue, options: [
             .workingColorSpace: Self.linearP3,
             .cacheIntermediates: false,
         ])
@@ -102,12 +105,18 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
         } else {
             destination.colorSpace = Self.sRGB
         }
-        _ = try? context.startTask(
-            toRender: image.cropped(to: CGRect(origin: .zero, size: size)),
-            from: CGRect(origin: .zero, size: size),
-            to: destination,
-            at: .zero
-        )
+        do {
+            _ = try context.startTask(
+                toRender: image.cropped(to: CGRect(origin: .zero, size: size)),
+                from: CGRect(origin: .zero, size: size),
+                to: destination,
+                at: .zero
+            )
+        } catch {
+            // Skip the frame rather than present an unfinished drawable.
+            Self.log.error("preview render failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }

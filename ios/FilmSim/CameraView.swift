@@ -14,6 +14,10 @@ struct CameraView: View {
     @AppStorage(AppPreferences.showStatusKey) private var showStatus = false
     @State private var showsSettings = false
     @State private var shownNotice: CameraController.Notice?
+    /// The recipe strip's place shows the exposure dial (#56) while this is set.
+    @State private var adjustingExposure = false
+    /// Bumped on every dial movement, restarting the wait before the strip comes back.
+    @State private var exposureTouches = 0
 
     private var currentRecipe: Recipe { recipes.selected.recipe }
     private var rotation: Double { camera.controlRotation }
@@ -49,6 +53,11 @@ struct CameraView: View {
         .sheet(isPresented: $showsSettings, onDismiss: camera.applyStoredSettings) { SettingsView() }
         .task { await camera.start() }
         .task(id: currentRecipe) { await camera.updatePreviewLook(currentRecipe) }
+        .task(id: exposureTouches) {
+            guard adjustingExposure else { return }
+            try? await Task.sleep(for: .seconds(3))
+            withAnimation { adjustingExposure = false }
+        }
         .task(id: camera.notice) {
             guard let notice = camera.notice else { return }
             withAnimation { shownNotice = notice }
@@ -91,7 +100,16 @@ struct CameraView: View {
     private var controls: some View {
         VStack(spacing: 10) {
             focalLengthButtons
-            RecipeStrip(recipes: recipes.book.visible, selection: recipes.selection, rotation: rotation)
+            if adjustingExposure {
+                ExposureDial(value: camera.exposureBias, rotation: rotation) { ev in
+                    camera.setExposureBias(to: ev)
+                    exposureTouches += 1
+                }
+                .transition(.opacity)
+            } else {
+                RecipeStrip(recipes: recipes.book.visible, selection: recipes.selection, rotation: rotation)
+                    .transition(.opacity)
+            }
             HStack {
                 thumbnail
                 Spacer()
@@ -157,18 +175,25 @@ struct CameraView: View {
         .accessibilityLabel("シャッター")
     }
 
-    /// Shows the capture-time exposure compensation. Turns into a dial in #56; until then it is
-    /// changed in Settings.
+    /// Capture-time exposure compensation. Pressing it swaps the recipe strip for the dial;
+    /// pressing again, or leaving the dial alone for 3 seconds, brings the strip back.
     private var exposureButton: some View {
-        Text(ExposureCompensation.label(camera.exposureBias))
-            .font(.subheadline.weight(.semibold))
-            .monospacedDigit()
-            .foregroundStyle(camera.exposureBias == 0 ? Color.white : Color.yellow)
-            .rotationEffect(.degrees(rotation))
-            .frame(width: 52, height: 52)
-            .background(.black.opacity(0.4), in: Circle())
-            .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 1))
-            .accessibilityLabel("露出補正 \(ExposureCompensation.label(camera.exposureBias))")
+        Button {
+            withAnimation { adjustingExposure.toggle() }
+            exposureTouches += 1
+        } label: {
+            Text(ExposureCompensation.label(camera.exposureBias))
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(camera.exposureBias == 0 ? Color.white : Color.yellow)
+                .rotationEffect(.degrees(rotation))
+                .frame(width: 52, height: 52)
+                .background(.black.opacity(adjustingExposure ? 0.7 : 0.4), in: Circle())
+                .overlay(Circle().stroke(adjustingExposure ? Color.yellow : .white.opacity(0.6), lineWidth: adjustingExposure ? 2 : 1))
+        }
+        .disabled(!camera.isReady)
+        .accessibilityLabel("露出補正 \(ExposureCompensation.label(camera.exposureBias))")
+        .accessibilityHint("押すと目盛りで変えられる")
     }
 }
 
@@ -220,5 +245,73 @@ private struct RecipeStrip: View {
         .sensoryFeedback(.selection, trigger: selection)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("レシピ")
+    }
+}
+
+/// Exposure compensation from −3 to +3 in thirds, like the X100's dial (#56). Swipe sideways; the
+/// stop under the yellow mark in the middle is set at once, so the preview brightens or darkens
+/// while the dial moves. Tapping a stop scrolls it to the middle. Whole stops are numbered.
+private struct ExposureDial: View {
+    let value: Float
+    let rotation: Double
+    let onChange: (Float) -> Void
+    @State private var centred: Int?
+
+    private let tick: CGFloat = 22
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(ExposureCompensation.dialThirds, id: \.self) { thirds in
+                        let whole = thirds % ExposureCompensation.stepsPerEV == 0
+                        VStack(spacing: 4) {
+                            Rectangle()
+                                .fill(Color.white.opacity(whole ? 1 : 0.6))
+                                .frame(width: 1.5, height: whole ? 14 : 8)
+                            Text(whole ? ExposureCompensation.label(ExposureCompensation.ev(thirds: thirds)) : "")
+                                .font(.caption2.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(.white)
+                                .fixedSize()
+                                .rotationEffect(.degrees(rotation))
+                                .frame(height: 18)
+                        }
+                        .frame(width: tick, height: 44, alignment: .top)
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation { centred = thirds } }
+                        .id(thirds)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .contentMargins(.horizontal, max(0, (geo.size.width - tick) / 2), for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $centred, anchor: .center)
+        }
+        .frame(height: 44)
+        .overlay(alignment: .top) {
+            Capsule().fill(Color.yellow).frame(width: 3, height: 20).offset(y: -3)
+        }
+        .onAppear { centred = ExposureCompensation.thirds(value) }
+        .onChange(of: centred) { _, thirds in
+            guard let thirds, thirds != ExposureCompensation.thirds(value) else { return }
+            onChange(ExposureCompensation.ev(thirds: thirds))
+        }
+        // The device may clamp to a narrower range; follow what was actually set.
+        .onChange(of: value) { _, ev in
+            let thirds = ExposureCompensation.thirds(ev)
+            if centred != thirds { withAnimation { centred = thirds } }
+        }
+        .sensoryFeedback(.selection, trigger: centred)
+        .accessibilityElement()
+        .accessibilityLabel("露出補正")
+        .accessibilityValue(ExposureCompensation.label(value))
+        .accessibilityAdjustableAction { direction in
+            let step = direction == .increment ? 1 : -1
+            let next = ExposureCompensation.thirds(value) + step
+            guard ExposureCompensation.dialThirds.contains(next) else { return }
+            onChange(ExposureCompensation.ev(thirds: next))
+        }
     }
 }

@@ -66,6 +66,7 @@ final class LUTLibrary: ObservableObject {
                 let stored = input == .fLog2 ? text : lut.convertedToFLog2(from: input).cubeText
                 do {
                     try stored.write(to: fileURL(for: name), atomically: true, encoding: .utf8)
+                    RecipeStore.shared.lutImported(named: name, displayName: displayName(for: name))
                     report.lines.append("\(file)：\(input.displayName) 用として読み込みました")
                 } catch {
                     report.lines.append("\(file)：保存できません（\(error.localizedDescription)）")
@@ -92,6 +93,7 @@ final class LUTLibrary: ObservableObject {
         displayNames.remove(name)
         UserDefaults.standard.set(displayNames.encoded, forKey: LUTDisplayNames.storageKey)
         try? FileManager.default.removeItem(at: fileURL(for: name))
+        RecipeStore.shared.lutDeleted(named: name)
         refresh()
         Developer.shared.reloadImportedLUTs()
     }

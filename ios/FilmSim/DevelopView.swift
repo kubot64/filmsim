@@ -7,8 +7,8 @@ struct DevelopView: View {
     @State private var picked: PhotosPickerItem?
     @State private var rawData: Data?
     @State private var preview: UIImage?
-    /// Shared with the camera screen, which develops new shots with it (#8).
-    @AppStorage(Recipe.storageKey) private var storedRecipe = Data()
+    /// The selected saved recipe; the sliders edit it, and the camera develops new shots with it.
+    @ObservedObject private var recipes = RecipeStore.shared
     /// Shared with the camera and settings screens. The DNG holds the whole sensor, so any choice works.
     @AppStorage(FocalLength.storageKey) private var focalLength = FocalLength.default
     @State private var message: String?
@@ -16,7 +16,7 @@ struct DevelopView: View {
     @State private var renderGeneration = 0
     @State private var renderTask: Task<Void, Never>?
 
-    private var recipe: Binding<Recipe> { Recipe.binding($storedRecipe) }
+    private var recipe: Binding<Recipe> { recipes.current }
 
     var body: some View {
         NavigationStack {
@@ -62,7 +62,7 @@ struct DevelopView: View {
                 }
             }
             .onChange(of: picked) { _, item in Task { await load(item) } }
-            .onChange(of: storedRecipe) { _, _ in scheduleRender() }
+            .onChange(of: recipes.selected.recipe) { _, _ in scheduleRender() }
             .onChange(of: focalLength) { _, _ in scheduleRender() }
         }
     }

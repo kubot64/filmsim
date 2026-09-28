@@ -32,6 +32,22 @@ enum DevelopSaveResult {
     }
 }
 
+/// `DevelopSaveResult` plus the library ids of what was saved, for the shot log (#54).
+struct DevelopSaveOutcome {
+    let result: DevelopSaveResult
+    var heicAssetID: String?
+    var dngAssetID: String?
+
+    var message: String { result.message }
+    var savedAnything: Bool { heicAssetID != nil || dngAssetID != nil }
+}
+
+/// Ids of the assets a change block creates. The block runs off the main actor.
+private final class CreatedAssetIDs: @unchecked Sendable {
+    var heic: String?
+    var dng: String?
+}
+
 /// Runs the FilmSimCore pipeline on a DNG and writes HEIC (+ optional DNG) to the photo library.
 @MainActor
 final class Developer {
@@ -90,8 +106,8 @@ final class Developer {
         return await Task.detached(priority: .userInitiated) { box.cgImage() }.value
     }
 
-    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveResult {
-        guard await authorizeAdd() else { return .permissionDenied }
+    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveOutcome {
+        guard await authorizeAdd() else { return DevelopSaveOutcome(result: .permissionDenied) }
         let heic: Data?
         if let pipeline = await pipeline(for: recipe) {
             let box = RenderBox(
@@ -103,8 +119,9 @@ final class Developer {
             heic = nil
         }
         if heic == nil && !saveDNG {
-            return .developFailed(setupError: setupError)
+            return DevelopSaveOutcome(result: .developFailed(setupError: setupError))
         }
+        let ids = CreatedAssetIDs()
         do {
             // Two separate assets, created in one change block so both or neither land.
             // Photos rejects the DNG as the HEIC's .alternatePhoto (PHPhotosErrorDomain 3300) on
@@ -112,19 +129,28 @@ final class Developer {
             // is cropped and graded, so Photos does not treat it as the same picture as the RAW.
             try await PHPhotoLibrary.shared().performChanges {
                 if let heic {
-                    PHAssetCreationRequest.forAsset().addResource(with: .photo, data: heic, options: nil)
+                    let request = PHAssetCreationRequest.forAsset()
+                    request.addResource(with: .photo, data: heic, options: nil)
+                    ids.heic = request.placeholderForCreatedAsset?.localIdentifier
                 }
                 if saveDNG {
                     let opts = PHAssetResourceCreationOptions()
                     opts.originalFilename = "FilmSim.DNG"
-                    PHAssetCreationRequest.forAsset().addResource(with: .photo, data: rawData, options: opts)
+                    let request = PHAssetCreationRequest.forAsset()
+                    request.addResource(with: .photo, data: rawData, options: opts)
+                    ids.dng = request.placeholderForCreatedAsset?.localIdentifier
                 }
             }
         } catch {
-            return .saveFailed(localizedDescription: error.localizedDescription)
+            return DevelopSaveOutcome(result: .saveFailed(localizedDescription: error.localizedDescription))
         }
-        if heic == nil { return .savedDNGOnly(setupError: setupError) }
-        return saveDNG ? .savedHEICAndDNG : .savedHEIC
+        let result: DevelopSaveResult
+        if heic == nil {
+            result = .savedDNGOnly(setupError: setupError)
+        } else {
+            result = saveDNG ? .savedHEICAndDNG : .savedHEIC
+        }
+        return DevelopSaveOutcome(result: result, heicAssetID: ids.heic, dngAssetID: ids.dng)
     }
 
     /// Kernels plus the LUT `recipe` renders with (`ResolvedLook`). An imported LUT is used when

@@ -1,7 +1,7 @@
 import Foundation
 
-/// The last-used recipe, shared by the camera and develop screens through one
-/// UserDefaults entry (`@AppStorage(Recipe.storageKey)`), not a shared object (#8).
+/// JSON for a `Recipe`. `storageKey` held the single last-used recipe before recipes were saved
+/// by name (#54); `RecipeBook` reads it once to migrate.
 extension Recipe {
     public static let storageKey = "lastRecipe"
 

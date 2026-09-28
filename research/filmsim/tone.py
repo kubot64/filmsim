@@ -2,7 +2,7 @@
 
 Placeholder mapping of Fujifilm's -2..+4 scale onto a smooth curve applied to
 display-referred (LUT output) values. There is no ground truth for how the real
-camera bends the curve, so this is tuned by eye. See docs/OPEN_QUESTIONS.md.
+camera bends the curve, so this is tuned by eye. See issue #72.
 """
 
 from __future__ import annotations

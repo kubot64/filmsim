@@ -6,7 +6,7 @@ import ImageIO
 /// no boost, no local tone mapping, values above 1.0 kept, Apple's demosaic / noise reduction / lens correction kept.
 public enum RawDeveloper {
     public struct Options: Sendable {
-        public var luminanceNoiseReduction: Float = 0.3   // Apple default is stronger than Fujifilm; tune (OPEN_QUESTIONS)
+        public var luminanceNoiseReduction: Float = 0.3   // Apple default is stronger than Fujifilm; tune (issue #69)
         public var colorNoiseReduction: Float = 0.5
         public var sharpness: Float = 0.0                  // sharpening is done later, if at all
         /// 1 is full resolution. Previews pass a smaller value so demosaic matches the display size.

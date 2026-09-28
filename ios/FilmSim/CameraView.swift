@@ -1,8 +1,8 @@
 import FilmSimCore
 import SwiftUI
 
-/// Plain preview (no film simulation live), shutter, RAW capture.
-/// Tap the preview to focus and meter there, long-press for AE/AF lock.
+/// Live preview with the film simulation (close in look, not a match: #50), shutter, RAW capture.
+/// Tap the preview to focus and meter there until the next tap, long-press for AE/AF lock.
 /// The ± buttons set capture-time exposure compensation; the mm button steps the focal length.
 /// Shots are developed with the last-used recipe, shared with the develop screen (#8).
 /// The film simulation can be switched here; other settings come from the develop screen.
@@ -17,7 +17,12 @@ struct CameraView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            CameraPreview(session: camera.session, zoom: camera.previewZoom) { point, lock in
+            CameraPreview(
+                renderer: camera.previewRenderer,
+                crop: camera.previewCrop,
+                focusPoint: camera.focusPoint,
+                isLocked: camera.isAEAFLocked
+            ) { point, lock in
                 camera.focusAndExpose(at: point, lock: lock)
             }
             .aspectRatio(2.0 / 3.0, contentMode: .fit)
@@ -37,6 +42,7 @@ struct CameraView: View {
         .overlay(alignment: .top) { recipeBar.padding(.top, 8) }
         .background(Color.black)
         .task { await camera.start() }
+        .task(id: currentRecipe) { await camera.updatePreviewLook(currentRecipe) }
     }
 
     private var recipeBar: some View {

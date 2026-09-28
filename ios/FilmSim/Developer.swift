@@ -131,7 +131,7 @@ final class Developer {
     /// its file still reads; otherwise the built-in simulation is, as `ResolvedLook` falls back.
     /// LUTs load off the main actor on first use; a missing or corrupt built-in file only
     /// disables that simulation.
-    private func pipeline(for recipe: Recipe) async -> Pipeline? {
+    func pipeline(for recipe: Recipe) async -> Pipeline? {
         guard let kernels else { return nil }
         if let name = recipe.importedLUT, let lut = await loadImportedLUT(name) {
             return Pipeline(kernels: kernels, luts: [:], importedLUTs: [name: lut])

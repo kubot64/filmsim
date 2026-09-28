@@ -47,6 +47,15 @@ struct SettingsView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 rawSupportSection
+                Section {
+                    LabeledContent("バージョン", value: AppVersion.label)
+                        .monospacedDigit()
+                        .textSelection(.enabled)
+                } header: {
+                    Text("このアプリ")
+                } footer: {
+                    Text("ビルドした commit と日付。+ は commit していない変更を含むビルド。保存する HEIC にも書き込む。")
+                }
             }
             .navigationTitle("Settings")
         }

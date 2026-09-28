@@ -22,3 +22,6 @@ ios/**/DerivedData/
 .DS_Store
 ios/FilmSim/LUTs/*.cube
 !ios/FilmSim/LUTs/Portra400VC_65grid.cube
+
+# 毎ビルド生成（project.yml の Build info）
+ios/FilmSim/BuildInfo.generated.swift

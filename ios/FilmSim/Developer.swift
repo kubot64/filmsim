@@ -237,7 +237,10 @@ private final class RenderBox: @unchecked Sendable {
         guard let dest = CGImageDestinationCreateWithData(data as CFMutableData, UTType.heic.identifier as CFString, 1, nil) else {
             return nil
         }
-        let props = [kCGImageDestinationLossyCompressionQuality as String: 0.95] as CFDictionary
+        let props = [
+            kCGImageDestinationLossyCompressionQuality as String: 0.95,
+            kCGImagePropertyTIFFDictionary as String: [kCGImagePropertyTIFFSoftware as String: AppVersion.software],
+        ] as CFDictionary
         CGImageDestinationAddImage(dest, cg, props)
         guard CGImageDestinationFinalize(dest) else { return nil }
         return data as Data

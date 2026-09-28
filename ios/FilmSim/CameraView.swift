@@ -30,7 +30,13 @@ struct CameraView: View {
             .ignoresSafeArea()
             VStack(spacing: 8) {
                 Spacer()
-                Text(camera.status).font(.footnote).foregroundStyle(.white)
+                // Kept clear of the exposure control at the bottom right (52pt wide, 16pt from the edge)
+                // on both sides so it stays centred; long messages wrap instead of running under "+".
+                Text(camera.status)
+                    .font(.footnote)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 76)
                 Button {
                     camera.capture(recipe: currentRecipe)
                 } label: {

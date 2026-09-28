@@ -112,10 +112,16 @@ final class CameraController: NSObject, ObservableObject {
     }
 
     /// Only the crop changes: the whole sensor is still captured, and the preview crops to match.
+    /// A focus point near the edge of a wider frame can fall outside the new crop; it moves to just
+    /// inside, so focus stays on something in the picture and the frame stays on screen.
     func setFocalLength(_ newValue: FocalLength) {
         focalLength = newValue
         UserDefaults.standard.set(newValue.rawValue, forKey: FocalLength.storageKey)
         previewRenderer?.setFocalLength(newValue)
+        let inside = PreviewGeometry.clamped(focusPoint, into: previewCrop)
+        if inside != focusPoint {
+            focusAndExpose(at: inside, lock: isAEAFLocked)
+        }
     }
 
     /// Moves the exposure compensation by `steps` thirds of a stop. The preview shows the change live.

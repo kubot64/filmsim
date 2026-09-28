@@ -58,6 +58,22 @@ final class PreviewGeometryTests: XCTestCase {
         XCTAssertLessThan(v.y, 0.4)
     }
 
+    /// A point at the edge of the 24mm frame is outside the 35mm crop; it moves to just inside.
+    func testClampedMovesAnEdgePointInsideALongerCrop() {
+        let wide = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm24)
+        let tele = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm35)
+        let edge = PreviewGeometry.devicePoint(fromView: CGPoint(x: 0.02, y: 0.98), crop: wide)
+        let c = PreviewGeometry.clamped(edge, into: tele)
+        let v = PreviewGeometry.viewPoint(fromDevice: c, crop: tele)
+        XCTAssertEqual(v.x, 0.05, accuracy: 1e-9)
+        XCTAssertEqual(v.y, 0.95, accuracy: 1e-9)
+    }
+
+    func testClampedKeepsAPointInside() {
+        let tele = PreviewGeometry.crop(sensorAspect: 4.0 / 3.0, focalLength: .mm35)
+        assertPoint(PreviewGeometry.clamped(CGPoint(x: 0.5, y: 0.45), into: tele), CGPoint(x: 0.5, y: 0.45))
+    }
+
     private func assertPoint(_ a: CGPoint, _ b: CGPoint, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(a.x, b.x, accuracy: 1e-9, file: file, line: line)
         XCTAssertEqual(a.y, b.y, accuracy: 1e-9, file: file, line: line)

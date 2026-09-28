@@ -69,16 +69,32 @@ final class ShotStore: ObservableObject {
     }
 
     func thumbnail(for shot: ShotRecord) -> UIImage? {
-        UIImage(contentsOfFile: thumbnails.appendingPathComponent("\(shot.id.uuidString).jpg").path)
+        UIImage(contentsOfFile: thumbnailURL(for: shot).path)
+    }
+
+    /// Forgets a shot whose photos were deleted, with its thumbnail.
+    func remove(_ shot: ShotRecord) {
+        log.remove(id: shot.id)
+        try? FileManager.default.removeItem(at: thumbnailURL(for: shot))
+        latestThumbnail = log.newestFirst.lazy.compactMap { self.thumbnail(for: $0) }.first
+        save()
+    }
+
+    private func thumbnailURL(for shot: ShotRecord) -> URL {
+        thumbnails.appendingPathComponent("\(shot.id.uuidString).jpg")
     }
 
     func append(_ shot: ShotRecord, thumbnailJPEG: Data?) {
         if let thumbnailJPEG {
             try? FileManager.default.createDirectory(at: thumbnails, withIntermediateDirectories: true)
-            try? thumbnailJPEG.write(to: thumbnails.appendingPathComponent("\(shot.id.uuidString).jpg"), options: .atomic)
+            try? thumbnailJPEG.write(to: thumbnailURL(for: shot), options: .atomic)
             latestThumbnail = UIImage(data: thumbnailJPEG)
         }
         log.append(shot)
+        save()
+    }
+
+    private func save() {
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try log.encoded.write(to: url, options: .atomic)

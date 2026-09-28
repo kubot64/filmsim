@@ -183,6 +183,16 @@ final class ShotLogTests: XCTestCase {
         XCTAssertEqual(log.newestFirst.map(\.heicAssetID), ["2", "1", "0"])
     }
 
+    func testRemove() {
+        var log = ShotLog()
+        let keep = ShotRecord(date: .now, heicAssetID: "a", dngAssetID: nil, recipeName: "x", recipe: Recipe(), focalLength: .mm35)
+        let drop = ShotRecord(date: .now, heicAssetID: "b", dngAssetID: nil, recipeName: "x", recipe: Recipe(), focalLength: .mm35)
+        log.append(keep)
+        log.append(drop)
+        log.remove(id: drop.id)
+        XCTAssertEqual(log.shots, [keep])
+    }
+
     func testMissingOrBrokenDataIsEmpty() {
         XCTAssertEqual(ShotLog.decoded(from: Data()), ShotLog())
         XCTAssertEqual(ShotLog.decoded(from: Data("{".utf8)), ShotLog())

@@ -47,7 +47,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Irocam
         INFOPLIST_KEY_NSCameraUsageDescription: "RAW 撮影のためにカメラを使います"
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "現像した写真と DNG を保存します"
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "DNG を選んで再現像します"
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "このアプリで撮った写真を表示し、DNG を選んで現像し直します"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         CODE_SIGN_STYLE: Automatic

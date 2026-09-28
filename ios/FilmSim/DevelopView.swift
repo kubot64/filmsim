@@ -6,6 +6,11 @@ import SwiftUI
 struct DevelopView: View {
     @State private var picked: PhotosPickerItem?
     @State private var rawData: Data?
+
+    /// `rawData` opens with that DNG already loaded, for re-developing a shot from the review screen.
+    init(rawData: Data? = nil) {
+        _rawData = State(initialValue: rawData)
+    }
     @State private var preview: UIImage?
     /// The selected saved recipe; the sliders edit it, and the camera develops new shots with it.
     @ObservedObject private var recipes = RecipeStore.shared
@@ -62,6 +67,7 @@ struct DevelopView: View {
                 }
             }
             .onChange(of: picked) { _, item in Task { await load(item) } }
+            .onAppear { scheduleRender() }
             .onChange(of: recipes.selected.recipe) { _, _ in scheduleRender() }
             .onChange(of: focalLength) { _, _ in scheduleRender() }
         }

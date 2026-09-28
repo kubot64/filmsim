@@ -13,6 +13,7 @@ struct CameraView: View {
     @ObservedObject private var shots = ShotStore.shared
     @AppStorage(AppPreferences.showStatusKey) private var showStatus = false
     @State private var showsSettings = false
+    @State private var showsReview = false
     @State private var shownNotice: CameraController.Notice?
 
     private var currentRecipe: Recipe { recipes.selected.recipe }
@@ -47,6 +48,7 @@ struct CameraView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: rotation)
         .sheet(isPresented: $showsSettings, onDismiss: camera.applyStoredSettings) { SettingsView() }
+        .fullScreenCover(isPresented: $showsReview) { ReviewView() }
         .task { await camera.start() }
         .task(id: currentRecipe) { await camera.updatePreviewLook(currentRecipe) }
         .task(id: camera.notice) {
@@ -128,8 +130,13 @@ struct CameraView: View {
         }
     }
 
-    /// The last shot. Opens the review screen in #57.
+    /// The last shot. Opens the review screen (#57).
     private var thumbnail: some View {
+        Button { showsReview = true } label: { thumbnailImage }
+            .accessibilityLabel("撮った写真を見る")
+    }
+
+    private var thumbnailImage: some View {
         Group {
             if let image = shots.latestThumbnail {
                 Image(uiImage: image).resizable().scaledToFill()
@@ -141,7 +148,6 @@ struct CameraView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.6), lineWidth: 1))
         .rotationEffect(.degrees(rotation))
-        .accessibilityLabel("最後に撮った写真")
     }
 
     private var shutter: some View {

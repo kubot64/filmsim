@@ -21,16 +21,25 @@ enum LibraryRaw {
     }
 
     static func load(from item: PhotosPickerItem) async throws -> Data {
-        let current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        let status = current == .notDetermined
-            ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-            : current
-        guard status == .authorized || status == .limited else { throw LoadError.denied }
-
+        guard await canRead() else { throw LoadError.denied }
         guard let id = item.itemIdentifier else {
             if let data = try await item.loadTransferable(type: Data.self) { return data }
             throw LoadError.noAsset
         }
+        return try await load(assetID: id)
+    }
+
+    /// Asks for read access the first time. Limited access is enough for the photos this app saved.
+    static func canRead() async -> Bool {
+        let current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        let status = current == .notDetermined
+            ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            : current
+        return status == .authorized || status == .limited
+    }
+
+    /// The original RAW (or the photo when there is no RAW) of the asset with `assetID`.
+    static func load(assetID id: String) async throws -> Data {
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil)
         guard let asset = assets.firstObject else { throw LoadError.noAsset }
         let resources = PHAssetResource.assetResources(for: asset)

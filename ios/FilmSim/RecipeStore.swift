@@ -16,7 +16,10 @@ final class RecipeStore: ObservableObject {
     private init() {
         let defaults = UserDefaults.standard
         let last = defaults.data(forKey: Recipe.storageKey).map(Recipe.decoded(from:))
-        book = RecipeBook.decoded(from: defaults.data(forKey: RecipeBook.storageKey) ?? Data(), migrating: last)
+        var book = RecipeBook.decoded(from: defaults.data(forKey: RecipeBook.storageKey) ?? Data(), migrating: last)
+        let library = LUTLibrary.shared
+        book.addMissingImportedLUTs(library.names.map { ($0, library.displayName(for: $0)) })
+        self.book = book
         defaults.set(book.encoded, forKey: RecipeBook.storageKey)
     }
 
@@ -34,6 +37,10 @@ final class RecipeStore: ObservableObject {
 
     func lutImported(named name: String, displayName: String) {
         book.addImportedLUT(named: name, displayName: displayName)
+    }
+
+    func lutRenamed(named name: String, from oldDisplayName: String, to newDisplayName: String) {
+        book.renameImportedLUT(named: name, from: oldDisplayName, to: newDisplayName)
     }
 
     func lutDeleted(named name: String) {

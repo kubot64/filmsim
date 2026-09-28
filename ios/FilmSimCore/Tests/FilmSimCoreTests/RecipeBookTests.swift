@@ -85,7 +85,8 @@ final class RecipeBookTests: XCTestCase {
         XCTAssertEqual(book.selected.id, book.recipes[0].id)
     }
 
-    /// A recipe the user adjusted on top of the LUT stays; it renders with its built-in simulation.
+    /// A recipe the user adjusted on top of the LUT stays, without the LUT; it renders with its
+    /// built-in simulation as before.
     func testDeletingALUTKeepsAnAdjustedRecipe() {
         var book = RecipeBook.initial()
         book.addImportedLUT(named: "Kodak", displayName: "コダック")
@@ -94,7 +95,66 @@ final class RecipeBookTests: XCTestCase {
         adjusted.grainStrength = .strong
         book.updateSelected(adjusted)
         book.removeImportedLUT(named: "Kodak")
-        XCTAssertEqual(book.selected.recipe, adjusted)
+        XCTAssertEqual(book.selected.name, "コダック")
+        XCTAssertEqual(book.selected.recipe.grainStrength, .strong)
+        XCTAssertNil(book.selected.recipe.importedLUT)
+    }
+
+    /// The built-in "ナチュラル" (default Provia) switched to a LUT has the same settings as the
+    /// LUT's own plain recipe; deleting the LUT must not take it away.
+    func testDeletingALUTKeepsABuiltInRecipeSwitchedToIt() {
+        var book = RecipeBook.initial()
+        book.addImportedLUT(named: "Kodak", displayName: "コダック")
+        let natural = book.recipes[0]
+        book.select(natural.id)
+        var switched = natural.recipe
+        switched.importedLUT = "Kodak"
+        book.updateSelected(switched)
+
+        book.removeImportedLUT(named: "Kodak")
+        XCTAssertEqual(book.recipes.count, FilmSimulation.allCases.count)
+        XCTAssertTrue(book.recipes.contains { $0.id == natural.id })
+        XCTAssertEqual(book.selected.id, natural.id)
+        XCTAssertNil(book.selected.recipe.importedLUT)
+        XCTAssertFalse(book.recipes.contains { $0.createdForLUT == "Kodak" })
+    }
+
+    /// LUTs imported before recipes were saved get a recipe at launch; ones that have one do not get another.
+    func testMissingImportedLUTsAreAdded() {
+        var book = RecipeBook.initial()
+        book.addImportedLUT(named: "Kodak", displayName: "コダック")
+        book.addMissingImportedLUTs([("Kodak", "コダック"), ("Agfa", "アグファ")])
+        XCTAssertEqual(book.recipes.filter { $0.createdForLUT == "Kodak" }.count, 1)
+        XCTAssertEqual(book.recipes.last?.name, "アグファ")
+        XCTAssertEqual(book.recipes.last?.recipe.importedLUT, "Agfa")
+    }
+
+    /// A LUT already used by another recipe (for example the migrated last-used one) gets no extra recipe.
+    func testNoExtraRecipeForALUTAlreadyInUse() {
+        var last = Recipe()
+        last.importedLUT = "Kodak"
+        var book = RecipeBook.initial(migrating: last)
+        let count = book.recipes.count
+        book.addMissingImportedLUTs([("Kodak", "コダック")])
+        XCTAssertEqual(book.recipes.count, count)
+    }
+
+    func testRenamingALUTRenamesItsRecipeUnlessTheUserRenamedIt() {
+        var book = RecipeBook.initial()
+        book.addImportedLUT(named: "Kodak", displayName: "Kodak")
+        book.renameImportedLUT(named: "Kodak", from: "Kodak", to: "コダック")
+        XCTAssertEqual(book.recipes.last?.name, "コダック")
+        book.renameImportedLUT(named: "Kodak", from: "別の名前", to: "ポートラ")
+        XCTAssertEqual(book.recipes.last?.name, "コダック")
+    }
+
+    /// Books saved before `createdForLUT` existed still decode.
+    func testDecodesABookWithoutCreatedForLUT() {
+        let id = UUID()
+        let json = #"{"recipes":[{"id":"\#(id)","name":"x","isHidden":false,"recipe":{"filmSimulation":"provia","exposureEV":0,"wbShiftR":0,"wbShiftB":0,"highlight":0,"shadow":0,"grainStrength":"off","grainSize":"small"}}],"selectedID":"\#(id)"}"#
+        let book = RecipeBook.decoded(from: Data(json.utf8))
+        XCTAssertEqual(book.recipes.count, 1)
+        XCTAssertNil(book.recipes[0].createdForLUT)
     }
 }
 

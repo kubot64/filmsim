@@ -6,12 +6,16 @@ public struct SavedRecipe: Codable, Equatable, Identifiable, Sendable {
     public var name: String
     public var recipe: Recipe
     public var isHidden: Bool
+    /// Set on the plain recipe made when a LUT is imported, to the LUT's name. It lets deleting and
+    /// renaming the LUT act on that recipe only, not on another recipe switched to the same LUT.
+    public var createdForLUT: String?
 
-    public init(id: UUID = UUID(), name: String, recipe: Recipe, isHidden: Bool = false) {
+    public init(id: UUID = UUID(), name: String, recipe: Recipe, isHidden: Bool = false, createdForLUT: String? = nil) {
         self.id = id
         self.name = name
         self.recipe = recipe
         self.isHidden = isHidden
+        self.createdForLUT = createdForLUT
     }
 }
 
@@ -75,24 +79,45 @@ public struct RecipeBook: Codable, Equatable, Sendable {
         recipes[i].recipe = recipe
     }
 
-    /// A plain recipe for a newly imported LUT, unless one already uses it.
+    /// A plain recipe for an imported LUT, unless one was already made for it or already uses it.
     public mutating func addImportedLUT(named lutName: String, displayName: String) {
-        guard !recipes.contains(where: { $0.recipe.importedLUT == lutName }) else { return }
-        var recipe = Recipe()
-        recipe.importedLUT = lutName
-        recipes.append(SavedRecipe(name: displayName, recipe: recipe))
+        guard !recipes.contains(where: { $0.createdForLUT == lutName || $0.recipe.importedLUT == lutName }) else { return }
+        recipes.append(SavedRecipe(name: displayName, recipe: Self.plain(lutName), createdForLUT: lutName))
     }
 
-    /// After an imported LUT is deleted: its plain, untouched recipe goes; a recipe the user
-    /// adjusted stays and renders with its built-in simulation (`ResolvedLook`), so nothing they
-    /// set up is lost. The selection moves to the first visible recipe if its recipe went.
+    /// Adds recipes for LUTs that were imported before recipes were saved (or that have none for
+    /// another reason), so every imported LUT can be chosen. Run at launch.
+    public mutating func addMissingImportedLUTs(_ luts: [(name: String, displayName: String)]) {
+        for lut in luts { addImportedLUT(named: lut.name, displayName: lut.displayName) }
+    }
+
+    /// The LUT's display name changed: the recipe made for it follows, unless the user has
+    /// named that recipe something else.
+    public mutating func renameImportedLUT(named lutName: String, from oldDisplayName: String, to newDisplayName: String) {
+        for i in recipes.indices where recipes[i].createdForLUT == lutName && recipes[i].name == oldDisplayName {
+            recipes[i].name = newDisplayName
+        }
+    }
+
+    /// After an imported LUT is deleted: the untouched recipe made for it goes. Every other recipe
+    /// that used it stays and drops the LUT, rendering with its built-in simulation as before
+    /// (`ResolvedLook`), so nothing the user set up is lost. The selection moves to the first
+    /// visible recipe if its recipe went.
     public mutating func removeImportedLUT(named lutName: String) {
-        var plain = Recipe()
-        plain.importedLUT = lutName
-        recipes.removeAll { $0.recipe == plain }
+        recipes.removeAll { $0.createdForLUT == lutName && $0.recipe == Self.plain(lutName) }
+        for i in recipes.indices where recipes[i].recipe.importedLUT == lutName {
+            recipes[i].recipe.importedLUT = nil
+            recipes[i].createdForLUT = nil
+        }
         if recipes.isEmpty { self = .initial() }
         if !recipes.contains(where: { $0.id == selectedID }) {
             selectedID = (visible.first ?? recipes[0]).id
         }
+    }
+
+    private static func plain(_ lutName: String) -> Recipe {
+        var recipe = Recipe()
+        recipe.importedLUT = lutName
+        return recipe
     }
 }

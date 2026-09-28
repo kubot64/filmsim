@@ -85,7 +85,9 @@ final class LUTLibrary: ObservableObject {
 
     /// Only the label changes; recipes keep the stored name, so the chosen look stays chosen.
     func rename(_ name: String, to newName: String) {
+        let old = displayName(for: name)
         displayNames.rename(name, to: newName)
+        RecipeStore.shared.lutRenamed(named: name, from: old, to: displayName(for: name))
         UserDefaults.standard.set(displayNames.encoded, forKey: LUTDisplayNames.storageKey)
     }
 

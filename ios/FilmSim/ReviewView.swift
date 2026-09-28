@@ -70,7 +70,12 @@ struct ReviewView: View {
         )
         .task { await load() }
         .sheet(item: $sharing) { ActivityView(items: [$0.url]) }
-        .fullScreenCover(item: $developing) { DevelopView(rawData: $0.data) }
+        .fullScreenCover(item: $developing) { DevelopView(rawData: $0.data, source: $0.source) }
+        // A re-develop saved from the develop screen joins the log; show it first.
+        .onChange(of: shots.log.shots.count) { old, new in
+            guard access == .allowed else { return }
+            refresh(showNewest: new > old)
+        }
         // In the library the photo and its RAW are two items, so Photos would say "2 photos".
         // Ask first, in words that match what the screen shows.
         .confirmationDialog(
@@ -169,10 +174,17 @@ struct ReviewView: View {
 
     private func load() async {
         guard await LibraryRaw.canRead() else { access = .denied; return }
+        refresh(showNewest: true)
+        access = .allowed
+    }
+
+    /// Re-reads which shots still have their HEIC and RAW in the library.
+    private func refresh(showNewest: Bool) {
         available = shots.log.newestFirst.filter { $0.heicAssetID.map(Self.exists) == true }
         withRaw = Set(available.filter { $0.dngAssetID.map(Self.exists) == true }.map(\.id))
-        current = available.first?.id
-        access = .allowed
+        if showNewest || !available.contains(where: { $0.id == current }) {
+            current = available.first?.id
+        }
     }
 
     private static func exists(_ id: String) -> Bool {
@@ -211,7 +223,7 @@ struct ReviewView: View {
     private func redevelop(_ shot: ShotRecord) async {
         guard let id = shot.dngAssetID else { return }
         do {
-            developing = DevelopItem(data: try await LibraryRaw.load(assetID: id))
+            developing = DevelopItem(data: try await LibraryRaw.load(assetID: id), source: shot)
         } catch {
             message = error.localizedDescription
         }
@@ -232,7 +244,8 @@ struct ReviewView: View {
         }
         let index = available.firstIndex { $0.id == shot.id } ?? 0
         shots.remove(shot)
-        available.removeAll { $0.id == shot.id }
+        // Re-developed shots share their RAW, so deleting it changes what the others show too.
+        refresh(showNewest: false)
         current = available.isEmpty ? nil : available[min(index, available.count - 1)].id
     }
 
@@ -260,6 +273,7 @@ struct ReviewView: View {
     private struct DevelopItem: Identifiable {
         let id = UUID()
         let data: Data
+        let source: ShotRecord
     }
 }
 

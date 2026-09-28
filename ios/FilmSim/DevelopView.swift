@@ -10,11 +10,15 @@ struct DevelopView: View {
 
     /// Only when opened without a DNG (from Settings) is there a button to pick one.
     private let picksRaw: Bool
+    /// The shot being re-developed, when opened from the review screen. Saves then join the shot
+    /// log as new shots of the same RAW, so they show in the review screen next to the original.
+    private let source: ShotRecord?
 
-    /// `rawData` opens with that DNG already loaded, for re-developing a shot from the review screen.
-    init(rawData: Data? = nil) {
+    /// `rawData` opens with that DNG already loaded, for re-developing `source` from the review screen.
+    init(rawData: Data? = nil, source: ShotRecord? = nil) {
         _rawData = State(initialValue: rawData)
         picksRaw = rawData == nil
+        self.source = source
     }
     @State private var preview: UIImage?
     /// The selected saved recipe; the sliders edit it, and the camera develops new shots with it.
@@ -153,9 +157,17 @@ struct DevelopView: View {
 
     private func save() async {
         guard let rawData else { return }
+        let recipe = recipes.selected
+        let focal = focalLength
         let result = await Developer.shared.developAndSave(
-            rawData: rawData, saveDNG: false, recipe: recipe.wrappedValue, focalLength: focalLength
+            rawData: rawData, saveDNG: false, recipe: recipe.recipe, focalLength: focal
         )
+        if let source, let heic = result.heicAssetID {
+            ShotStore.shared.append(ShotRecord(
+                date: Date(), heicAssetID: heic, dngAssetID: source.dngAssetID,
+                recipeName: recipe.name, recipe: recipe.recipe, focalLength: focal
+            ), thumbnailJPEG: result.thumbnailJPEG)
+        }
         message = result.message
     }
 }

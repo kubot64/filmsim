@@ -170,10 +170,15 @@ struct CameraPreview: UIViewRepresentable {
             focus(at: g.location(in: self), lock: true)
         }
 
+        /// A tap near the edge moves in until the whole frame is on screen, so the frame and
+        /// the point being measured stay the same.
         private func focus(at location: CGPoint, lock: Bool) {
             let image = imageRect
-            let p = CGPoint(x: (location.x - image.minX) / image.width, y: (location.y - image.minY) / image.height)
-            onFocus?(CGPoint(x: min(max(p.x, 0), 1), y: min(max(p.y, 0), 1)), lock)
+            let area = image.intersection(bounds).insetBy(dx: focusMark.bounds.width / 2, dy: focusMark.bounds.height / 2)
+            guard !area.isNull, image.width > 0, image.height > 0 else { return }
+            let x = min(max(location.x, area.minX), area.maxX)
+            let y = min(max(location.y, area.minY), area.maxY)
+            onFocus?(CGPoint(x: (x - image.minX) / image.width, y: (y - image.minY) / image.height), lock)
             focusMark.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
             UIView.animate(withDuration: 0.2) { self.focusMark.transform = .identity }
         }

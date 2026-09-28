@@ -19,4 +19,4 @@
 
 ## 使うときの注意
 
-LibRaw 基準の値なので、iPhone の CIRAWFilter にはそのまま使えない。同じ DNG を CIRAWFilter と LibRaw で線形にして中間調の比を出し、DR100 の値に足したものが iPhone のアンカーの候補になる（#6、`scripts/iphone_anchor.py`）。
+LibRaw 基準の値なので、iPhone の CIRAWFilter にはそのまま使えない。この値に CIRAWFilter と LibRaw の差を足して iPhone の値にすることもできない。アンカーは、カメラの自動露出が測光した中間グレーを線形のどこに置くかで決まり、その置き方が富士と iPhone で違う（iPhone は約 1.5 段明るく置く）ため。iPhone のアンカーは #6 で決める。

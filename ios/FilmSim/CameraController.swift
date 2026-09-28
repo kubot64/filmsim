@@ -21,7 +21,15 @@ final class CameraController: NSObject, ObservableObject {
     private var inflight: [Int64: PendingCapture] = [:]
 
     @Published var isReady = false
+    /// Details for development (Settings → 開発用). Shown on the camera screen only when enabled.
     @Published var status = "起動中…"
+    /// A short message the person taking pictures needs, such as a failed save. Shown briefly.
+    @Published private(set) var notice: Notice?
+
+    struct Notice: Equatable {
+        let id = UUID()
+        let text: String
+    }
     /// 35mm-equivalent crop for the next shot. Stored under `FocalLength.storageKey`,
     /// which the settings and develop screens also write.
     @Published private(set) var focalLength = FocalLength.stored()
@@ -49,22 +57,20 @@ final class CameraController: NSObject, ObservableObject {
 
     func start() async {
         guard await AVCaptureDevice.requestAccess(for: .video) else {
-            status = "カメラの許可がありません"; return
+            fail("カメラの許可がありません"); return
         }
         // `.task` runs again each time the Camera tab reappears; configure the session only once.
         guard device == nil else {
-            // The settings screen may have changed the stored values while this tab was away.
-            applyStoredExposureBias()
-            setFocalLength(FocalLength.stored())
+            applyStoredSettings()
             Task.detached { [session] in if !session.isRunning { session.startRunning() } }
             return
         }
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            status = "広角カメラがありません"; return
+            fail("広角カメラがありません"); return
         }
         switch PhotoSessionBuilder.configurePhotoSession(session, device: device, output: output) {
         case .failure(let message):
-            status = message
+            fail(message)
             return
         case .success(let info):
             self.device = device
@@ -100,6 +106,12 @@ final class CameraController: NSObject, ObservableObject {
         // A later recipe may have started while this LUT loaded; `.task(id:)` cancelled this one.
         guard !Task.isCancelled else { return }
         previewRenderer?.setLook(pipeline, recipe: recipe)
+    }
+
+    /// The settings screen may have changed the stored focal length and exposure compensation.
+    func applyStoredSettings() {
+        applyStoredExposureBias()
+        setFocalLength(FocalLength.stored())
     }
 
     private func reportBayerStatus(maxPhotoSize: String, dimensionList: String) {
@@ -194,9 +206,14 @@ final class CameraController: NSObject, ObservableObject {
         }
     }
 
+    private func fail(_ message: String) {
+        status = message
+        notice = Notice(text: message)
+    }
+
     func capture(recipe: SavedRecipe) {
         guard let rawType = output.bayerRAWFormats.first else {
-            status = "Bayer RAW のピクセルフォーマットがありません"; return
+            fail("Bayer RAW のピクセルフォーマットがありません"); return
         }
         let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
         settings.maxPhotoDimensions = output.maxPhotoDimensions
@@ -228,8 +245,8 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
         let rawDims = resolvedSettings.rawPhotoDimensions
         Task { @MainActor in
             guard let pending = self.inflight.removeValue(forKey: id) else { return }
-            if let err = error { self.status = "撮影に失敗しました: \(err.localizedDescription)"; return }
-            guard let raw = pending.rawData else { self.status = "RAW データが返りませんでした"; return }
+            if let err = error { self.fail("撮影に失敗しました: \(err.localizedDescription)"); return }
+            guard let raw = pending.rawData else { self.fail("RAW データが返りませんでした"); return }
             let saved = await Developer.shared.developAndSave(
                 rawData: raw,
                 saveDNG: UserDefaults.standard.bool(forKey: AppPreferences.saveDNGKey),
@@ -240,9 +257,10 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 ShotStore.shared.append(ShotRecord(
                     date: Date(), heicAssetID: saved.heicAssetID, dngAssetID: saved.dngAssetID,
                     recipeName: pending.recipe.name, recipe: pending.recipe.recipe, focalLength: pending.focalLength
-                ))
+                ), thumbnailJPEG: saved.thumbnailJPEG)
             }
             self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
+            if !saved.result.isSuccess { self.notice = Notice(text: saved.message) }
         }
     }
 }

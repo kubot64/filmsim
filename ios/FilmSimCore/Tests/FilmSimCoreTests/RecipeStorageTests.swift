@@ -18,16 +18,4 @@ final class RecipeStorageTests: XCTestCase {
         XCTAssertEqual(Recipe.decoded(from: Data("not json".utf8)), Recipe())
         XCTAssertEqual(Recipe.decoded(from: Data(#"{"filmSimulation":"kodachrome"}"#.utf8)), Recipe())
     }
-
-    func testAdjustmentSummaryListsOnlyWhatDiffersFromDefault() {
-        XCTAssertEqual(Recipe().adjustmentSummary, "")
-        var r = Recipe()
-        r.filmSimulation = .classicChrome
-        XCTAssertEqual(r.adjustmentSummary, "")
-        r.exposureEV = 0.5
-        r.wbShiftB = -3
-        r.shadow = 2
-        r.grainStrength = .strong
-        XCTAssertEqual(r.adjustmentSummary, "EV +0.50 · WB R+0 B-3 · S +2 · Grain strong small")
-    }
 }

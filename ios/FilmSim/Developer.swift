@@ -13,6 +13,14 @@ enum DevelopSaveResult {
     case savedHEICAndDNG
     case savedHEIC
 
+    /// Both the HEIC and any DNG asked for were saved.
+    var isSuccess: Bool {
+        switch self {
+        case .savedHEICAndDNG, .savedHEIC: return true
+        default: return false
+        }
+    }
+
     /// Japanese status text for the camera and develop screens.
     var message: String {
         switch self {
@@ -37,6 +45,8 @@ struct DevelopSaveOutcome {
     let result: DevelopSaveResult
     var heicAssetID: String?
     var dngAssetID: String?
+    /// A small JPEG of the HEIC for the camera screen's thumbnail. Nil when no HEIC was made.
+    var thumbnailJPEG: Data?
 
     var message: String { result.message }
     var savedAnything: Bool { heicAssetID != nil || dngAssetID != nil }
@@ -108,15 +118,17 @@ final class Developer {
 
     func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveOutcome {
         guard await authorizeAdd() else { return DevelopSaveOutcome(result: .permissionDenied) }
-        let heic: Data?
+        var heic: Data?
+        var thumbnail: Data?
         if let pipeline = await pipeline(for: recipe) {
             let box = RenderBox(
                 pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
                 rawData: rawData, scaleFactor: 1
             )
-            heic = await Task.detached(priority: .userInitiated) { box.heic() }.value
-        } else {
-            heic = nil
+            (heic, thumbnail) = await Task.detached(priority: .userInitiated) { () -> (Data?, Data?) in
+                let heic = box.heic()
+                return (heic, heic.flatMap(RenderBox.thumbnailJPEG(fromHEIC:)))
+            }.value
         }
         if heic == nil && !saveDNG {
             return DevelopSaveOutcome(result: .developFailed(setupError: setupError))
@@ -150,7 +162,7 @@ final class Developer {
         } else {
             result = saveDNG ? .savedHEICAndDNG : .savedHEIC
         }
-        return DevelopSaveOutcome(result: result, heicAssetID: ids.heic, dngAssetID: ids.dng)
+        return DevelopSaveOutcome(result: result, heicAssetID: ids.heic, dngAssetID: ids.dng, thumbnailJPEG: thumbnail)
     }
 
     /// Kernels plus the LUT `recipe` renders with (`ResolvedLook`). An imported LUT is used when
@@ -270,6 +282,22 @@ private final class RenderBox: @unchecked Sendable {
         CGImageDestinationAddImage(dest, cg, props)
         guard CGImageDestinationFinalize(dest) else { return nil }
         return data as Data
+    }
+
+    /// About 240px on the long side, enough for the 44pt thumbnail at 3x with room to spare.
+    static func thumbnailJPEG(fromHEIC heic: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(heic as CFData, nil),
+              let thumb = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 240,
+              ] as CFDictionary) else { return nil }
+        let data = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(data as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(dest, thumb, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
+        return CGImageDestinationFinalize(dest) ? data as Data : nil
     }
 
     private func rendered() -> CIImage? {

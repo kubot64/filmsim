@@ -25,6 +25,12 @@ final class CameraController: NSObject, ObservableObject {
     @Published var status = "起動中…"
     /// A short message the person taking pictures needs, such as a failed save. Shown briefly.
     @Published private(set) var notice: Notice?
+    /// Incremented when a capture starts, so the preview can darken once per shot.
+    @Published private(set) var shutterFlash = 0
+    /// Shots taken and not yet saved or failed. The thumbnail spins while this is above zero.
+    private var developingCount = 0
+    /// True while at least one shot is still becoming a saved photo.
+    @Published private(set) var isDeveloping = false
 
     struct Notice: Equatable {
         let id = UUID()
@@ -231,7 +237,21 @@ final class CameraController: NSObject, ObservableObject {
         }
         // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
         inflight[settings.uniqueID] = PendingCapture(recipe: recipe, focalLength: focalLength)
+        // The preview darkens once per shot. The photo output plays the shutter sound; don't add one.
+        shutterFlash += 1
+        beginDeveloping()
         output.capturePhoto(with: settings, delegate: self)
+    }
+
+    private func beginDeveloping() {
+        developingCount += 1
+        if !isDeveloping { isDeveloping = true }
+    }
+
+    private func endDeveloping() {
+        developingCount = max(0, developingCount - 1)
+        let developing = developingCount > 0
+        if isDeveloping != developing { isDeveloping = developing }
     }
 }
 
@@ -249,6 +269,9 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
         let id = resolvedSettings.uniqueID
         let rawDims = resolvedSettings.rawPhotoDimensions
         Task { @MainActor in
+            // Paired with `beginDeveloping` in `capture`. Runs after the save, including on failure,
+            // so the thumbnail stops spinning when the short notice appears.
+            defer { self.endDeveloping() }
             guard let pending = self.inflight.removeValue(forKey: id) else { return }
             if let err = error { self.fail("撮影に失敗しました: \(err.localizedDescription)"); return }
             guard let raw = pending.rawData else { self.fail("RAW データが返りませんでした"); return }

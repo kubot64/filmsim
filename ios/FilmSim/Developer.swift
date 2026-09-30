@@ -7,9 +7,12 @@ import UniformTypeIdentifiers
 /// What `developAndSave` did. The screens turn this into Japanese status text.
 enum DevelopSaveResult {
     case permissionDenied
-    case developFailed(setupError: String?)
+    /// `reason` is why this attempt could not be set up (kernels, or this recipe's LUT).
+    /// Nil when the RAW itself could not be developed.
+    case developFailed(reason: String?)
     case saveFailed(localizedDescription: String)
-    case savedDNGOnly(setupError: String?)
+    /// `reason` is the same as `developFailed`: this attempt's setup failure, or nil for the RAW.
+    case savedDNGOnly(reason: String?)
     case savedHEICAndDNG
     case savedHEIC
 
@@ -26,12 +29,12 @@ enum DevelopSaveResult {
         switch self {
         case .permissionDenied:
             return "写真ライブラリへのアクセスが拒否されました"
-        case .developFailed(let setupError):
-            return setupError ?? "現像に失敗しました"
+        case .developFailed(let reason):
+            return reason ?? "現像に失敗しました"
         case .saveFailed(let localizedDescription):
             return "保存に失敗しました: \(localizedDescription)"
-        case .savedDNGOnly(let setupError):
-            return "DNG のみ保存しました（\(setupError ?? "現像に失敗")）"
+        case .savedDNGOnly(let reason):
+            return "DNG のみ保存しました（\(reason ?? "現像に失敗")）"
         case .savedHEICAndDNG:
             return "HEIC と DNG を保存しました"
         case .savedHEIC:
@@ -50,6 +53,14 @@ struct DevelopSaveOutcome {
 
     var message: String { result.message }
     var savedAnything: Bool { heicAssetID != nil || dngAssetID != nil }
+}
+
+/// One preview develop. `reason` is set only when this attempt failed during setup
+/// (kernels, or this recipe's LUT). It stays nil when the RAW could not be developed,
+/// and the screen uses its own wording then. An earlier LUT error is not carried here.
+struct DisplayImageResult {
+    var image: CGImage?
+    var reason: String?
 }
 
 /// Ids of the assets a change block creates. The block runs off the main actor.
@@ -81,9 +92,9 @@ final class Developer {
     private var importedLUTs: [String: CubeLUT] = [:]
     /// Bumped by `reloadImportedLUTs`, so a read that started before it is not cached.
     private var importedGeneration = 0
-    /// Set when kernels are missing, or when a requested LUT is missing/unreadable.
-    /// Rendering other loaded simulations still works.
-    private(set) var setupError: String?
+    /// Set only when the kernels fail to load. A missing or unreadable LUT is reported
+    /// on that develop and is not kept here, so a later failure shows its own reason.
+    private var setupError: String?
 
     private enum LUTLoadOutcome {
         case loaded(CubeLUT)
@@ -107,20 +118,24 @@ final class Developer {
     }
 
     /// Both screens pass the stored last-used recipe (`Recipe.storageKey`, #8).
-    func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe, focalLength: FocalLength) async -> CGImage? {
-        guard let pipeline = await pipeline(for: recipe) else { return nil }
+    func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe, focalLength: FocalLength) async -> DisplayImageResult {
+        guard let pipeline = await pipeline(for: recipe) else {
+            return DisplayImageResult(image: nil, reason: setupFailure(for: recipe))
+        }
         let box = RenderBox(
             pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
             rawData: rawData, scaleFactor: scaleFactor
         )
-        return await Task.detached(priority: .userInitiated) { box.cgImage() }.value
+        let image = await Task.detached(priority: .userInitiated) { box.cgImage() }.value
+        return DisplayImageResult(image: image, reason: nil)
     }
 
     func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveOutcome {
         guard await authorizeAdd() else { return DevelopSaveOutcome(result: .permissionDenied) }
         var heic: Data?
         var thumbnail: Data?
-        if let pipeline = await pipeline(for: recipe) {
+        let pipeline = await pipeline(for: recipe)
+        if let pipeline {
             let box = RenderBox(
                 pipeline: pipeline, context: context, recipe: recipe, focalLength: focalLength,
                 rawData: rawData, scaleFactor: 1
@@ -130,8 +145,11 @@ final class Developer {
                 return (heic, heic.flatMap(RenderBox.thumbnailJPEG(fromHEIC:)))
             }.value
         }
+        // Only a setup failure for this recipe. A RAW or encode failure leaves `reason` nil
+        // so the screen does not repeat an older LUT message.
+        let reason = pipeline == nil ? setupFailure(for: recipe) : nil
         if heic == nil && !saveDNG {
-            return DevelopSaveOutcome(result: .developFailed(setupError: setupError))
+            return DevelopSaveOutcome(result: .developFailed(reason: reason))
         }
         let ids = CreatedAssetIDs()
         do {
@@ -158,7 +176,7 @@ final class Developer {
         }
         let result: DevelopSaveResult
         if heic == nil {
-            result = .savedDNGOnly(setupError: setupError)
+            result = .savedDNGOnly(reason: reason)
         } else {
             result = saveDNG ? .savedHEICAndDNG : .savedHEIC
         }
@@ -192,7 +210,6 @@ final class Developer {
     private func loadLUT(_ simulation: FilmSimulation) async -> CubeLUT? {
         if let lut = luts[simulation] { return lut }
         if missingLUTs.contains(simulation) || unreadableLUTs[simulation] != nil {
-            refreshSetupError()
             return nil
         }
         let task = lutLoads[simulation] ?? Task.detached(priority: .userInitiated) { () -> LUTLoadOutcome in
@@ -214,29 +231,27 @@ final class Developer {
             return lut
         case .missing:
             missingLUTs.insert(simulation)
-            refreshSetupError()
             return nil
         case .unreadable(let message):
             unreadableLUTs[simulation] = message
-            refreshSetupError()
             return nil
         }
     }
 
-    /// Called only after a LUT load was attempted (`pipeline(for:)` already requires kernels).
-    private func refreshSetupError() {
-        var parts: [String] = []
-        let missingNames = FilmSimulation.allCases.filter { missingLUTs.contains($0) }.map(\.displayName)
-        if !missingNames.isEmpty {
-            parts.append("LUT がありません: \(missingNames.joined(separator: ", "))")
+    /// Why `pipeline(for:)` returned nil. Kernels, or this recipe's built-in LUT.
+    /// Call only in that case: a recipe whose imported LUT rendered must not pick up
+    /// another simulation's missing LUT. An imported file that is gone is not an error;
+    /// rendering falls back to the built-in look.
+    private func setupFailure(for recipe: Recipe) -> String? {
+        if kernels == nil { return setupError }
+        let simulation = recipe.filmSimulation
+        if missingLUTs.contains(simulation) {
+            return "LUT がありません: \(simulation.displayName)"
         }
-        for sim in FilmSimulation.allCases {
-            if let detail = unreadableLUTs[sim] {
-                parts.append("\(sim.displayName) の LUT を読めません: \(detail)")
-            }
+        if let detail = unreadableLUTs[simulation] {
+            return "\(simulation.displayName) の LUT を読めません: \(detail)"
         }
-        guard !parts.isEmpty else { return }
-        setupError = parts.joined(separator: "。")
+        return nil
     }
 
     private func authorizeAdd() async -> Bool {

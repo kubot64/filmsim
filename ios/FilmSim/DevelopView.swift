@@ -139,7 +139,7 @@ struct DevelopView: View {
             let current = recipe.wrappedValue
             let currentFocal = focalLength
             let epoch = renderGeneration
-            let cg = await Developer.shared.displayCGImage(
+            let rendered = await Developer.shared.displayCGImage(
                 rawData: rawData, scaleFactor: 0.25, recipe: current, focalLength: currentFocal
             )
             if Task.isCancelled { return }
@@ -147,12 +147,12 @@ struct DevelopView: View {
                 guard renderGeneration != epoch, self.rawData != nil else { return }
                 continue
             }
-            if let cg {
+            if let cg = rendered.image {
                 preview = UIImage(cgImage: cg)
                 message = nil
             } else {
                 preview = nil
-                message = Developer.shared.setupError ?? "RAW として現像できません"
+                message = rendered.reason ?? "RAW として現像できません"
             }
             return
         }

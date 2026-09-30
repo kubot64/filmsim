@@ -7,6 +7,7 @@ import SwiftUI
 /// Below the preview, from the top: focal-length buttons, the recipe strip, and the row of
 /// thumbnail, shutter and exposure compensation. The screen is portrait-locked; held sideways,
 /// everything stays where it is and only labels and icons turn (like the system Camera app).
+/// Taking a photo darkens the preview for a moment. Volume buttons take one too (iOS 17.2+).
 struct CameraView: View {
     @StateObject private var camera = CameraController()
     @ObservedObject private var recipes = RecipeStore.shared
@@ -32,10 +33,16 @@ struct CameraView: View {
                 renderer: camera.previewRenderer,
                 focusPoint: camera.focusViewPoint,
                 isLocked: camera.isAEAFLocked,
-                controlRotation: rotation
-            ) { point, lock in
-                camera.focusAndExpose(atView: point, lock: lock)
-            }
+                controlRotation: rotation,
+                shutterFlash: camera.shutterFlash,
+                hardwareShutterEnabled: camera.isReady && !showsSettings && !showsReview,
+                onFocus: { point, lock in
+                    camera.focusAndExpose(atView: point, lock: lock)
+                },
+                onHardwareShutter: {
+                    camera.capture(recipe: recipes.selected)
+                }
+            )
             .aspectRatio(2.0 / 3.0, contentMode: .fit)
             VStack(spacing: 0) {
                 topBar
@@ -153,18 +160,22 @@ struct CameraView: View {
         }
     }
 
-    /// The last shot. Opens the review screen (#57).
+    /// The last shot. Spins while the next one is developing, then shows that photo. Opens review (#57).
     private var thumbnail: some View {
         Button { showsReview = true } label: { thumbnailImage }
-            .accessibilityLabel("撮った写真を見る")
+            .accessibilityLabel(camera.isDeveloping ? "現像中。撮った写真を見る" : "撮った写真を見る")
     }
 
     private var thumbnailImage: some View {
-        Group {
+        ZStack {
             if let image = shots.latestThumbnail {
                 Image(uiImage: image).resizable().scaledToFill()
-            } else {
-                Color.clear
+            }
+            if camera.isDeveloping {
+                Color.black.opacity(0.45)
+                ProgressView()
+                    .tint(.white)
+                    .accessibilityHidden(true)
             }
         }
         .frame(width: 52, height: 52)

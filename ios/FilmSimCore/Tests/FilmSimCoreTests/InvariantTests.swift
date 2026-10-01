@@ -1,9 +1,10 @@
 import XCTest
 @testable import FilmSimCore
 
-/// Property tests: each rule must hold for every input, so each test throws thousands of
-/// random inputs at it instead of a few hand-picked ones. Each test's seed is fixed in the
-/// source, so a failure reproduces exactly, and its message names the failing input.
+/// Property tests: rules that must hold for every input. Most throw thousands of random inputs
+/// at the rule instead of a few hand-picked ones; their seeds are fixed in the source, so a
+/// failure reproduces exactly, and its message names the failing input. The F-Log2 seam test
+/// has no random inputs: it checks the datasheet constants where the two pieces meet.
 final class InvariantTests: XCTestCase {
     private let cases = 5_000
 

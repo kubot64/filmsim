@@ -15,6 +15,10 @@ final class CameraController: NSObject, ObservableObject {
     /// How the phone is held, for the shot's orientation (#44). The interface stays portrait.
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var holdingObservation: NSKeyValueObservation?
+    private var lensObservation: NSKeyValueObservation?
+    private var focusSettling = FocusSettling()
+    /// Waits `FocusSettling.settleDelay` after the latest bigger lens step; a newer one cancels it.
+    private var settleWait: Task<Void, Never>?
     /// Degrees the controls turn so they read upright however the phone is held (#43).
     /// Follows gravity, so it works with the system rotation lock on too.
     @Published private(set) var controlRotation = 0.0
@@ -27,6 +31,9 @@ final class CameraController: NSObject, ObservableObject {
     @Published private(set) var notice: Notice?
     /// Incremented when the exposure starts, so the preview darkens with the shutter sound.
     @Published private(set) var shutterFlash = 0
+    /// Incremented each time the lens comes to rest after refocusing (`FocusSettling`), so the focus
+    /// frame shows green for a moment. Nothing tells a failed focus apart; the lens just stops.
+    @Published private(set) var focusSettled = 0
     /// Shots taken and not yet saved or failed. The thumbnail spins while this is above zero.
     private var developingCount = 0
     /// True while at least one shot is still becoming a saved photo.
@@ -87,12 +94,30 @@ final class CameraController: NSObject, ObservableObject {
                 let rotation = HoldingOrientation.controlRotation(captureAngle: Double(c.videoRotationAngleForHorizonLevelCapture))
                 Task { @MainActor in self?.controlRotation = rotation }
             }
+            lensObservation = device.observe(\.lensPosition, options: [.initial, .new]) { [weak self] d, _ in
+                let position = d.lensPosition
+                Task { @MainActor in self?.lensMoved(to: position) }
+            }
             addPreviewOutput()
             setFocalLength(FocalLength.stored())
             applyStoredExposureBias()
             reportBayerStatus(maxPhotoSize: info.maxPhotoSize, dimensionList: info.dimensionList)
         }
         Task.detached { [session] in session.startRunning() }
+    }
+
+    /// A bigger step restarts the wait; creeping in only starts one if none is running.
+    private func lensMoved(to position: Float) {
+        let moving = focusSettling.lensMoved(to: position)
+        guard moving || settleWait == nil else { return }
+        settleWait?.cancel()
+        settleWait = Task { [weak self] in
+            // A cancelled sleep throws: a newer move is waiting instead.
+            do { try await Task.sleep(for: FocusSettling.settleDelay) } catch { return }
+            guard let self else { return }
+            self.settleWait = nil
+            if self.focusSettling.lensStopped() { self.focusSettled += 1 }
+        }
     }
 
     /// Frames stay in the sensor-native orientation; `PreviewRenderer` crops and turns them.

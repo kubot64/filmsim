@@ -127,6 +127,8 @@ struct CameraPreview: UIViewRepresentable {
     var controlRotation: Double
     /// Bumped by `CameraController` when the exposure starts. The preview darkens once per change.
     var shutterFlash: Int
+    /// Bumped by `CameraController` when the lens stops moving. The focus frame shows green once per change.
+    var focusSettled: Int
     /// While false, volume buttons change the volume. Off when the camera can't shoot or another screen is up.
     var hardwareShutterEnabled: Bool
     /// Tapped point, normalized like `focusPoint`, and whether it was a long press (AE/AF lock).
@@ -135,7 +137,7 @@ struct CameraPreview: UIViewRepresentable {
     var onHardwareShutter: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(shutterFlash: shutterFlash)
+        Coordinator(shutterFlash: shutterFlash, focusSettled: focusSettled)
     }
 
     func makeUIView(context: Context) -> PreviewView {
@@ -150,6 +152,10 @@ struct CameraPreview: UIViewRepresentable {
             uiView.flashShutter()
         }
         context.coordinator.shutterFlash = shutterFlash
+        if focusSettled > context.coordinator.focusSettled {
+            uiView.flashFocusSettled()
+        }
+        context.coordinator.focusSettled = focusSettled
     }
 
     private func update(_ v: PreviewView) {
@@ -164,7 +170,11 @@ struct CameraPreview: UIViewRepresentable {
 
     final class Coordinator {
         var shutterFlash: Int
-        init(shutterFlash: Int) { self.shutterFlash = shutterFlash }
+        var focusSettled: Int
+        init(shutterFlash: Int, focusSettled: Int) {
+            self.shutterFlash = shutterFlash
+            self.focusSettled = focusSettled
+        }
     }
 
     final class PreviewView: UIView {
@@ -181,7 +191,8 @@ struct CameraPreview: UIViewRepresentable {
         private var hardwareShutter: NSObject?
         /// Shown next to the frame while locked, on the holder's upper side.
         private let lockLabel = UILabel()
-        /// Always shown where focus is measured (#46): white while following, yellow while locked.
+        /// Always shown where focus is measured (#46): white while following, yellow while locked,
+        /// green for a moment each time focus settles.
         private let focusMark = UIView(frame: CGRect(x: 0, y: 0, width: 72, height: 72))
 
         init(renderer: PreviewRenderer?) {
@@ -247,6 +258,17 @@ struct CameraPreview: UIViewRepresentable {
             UIView.animate(withDuration: 0.2, delay: 0.04, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
                 self.shutterVeil.alpha = 0
             }
+        }
+
+        /// Shows the focus frame green for a moment, then back to white or yellow. A layer animation,
+        /// like `flashShutter`, so it shows from SwiftUI's view update; the model colour stays as set.
+        func flashFocusSettled() {
+            let glow = CAKeyframeAnimation(keyPath: "borderColor")
+            let green = UIColor.systemGreen.cgColor
+            glow.values = [green, green, focusMark.layer.borderColor ?? green]
+            glow.keyTimes = [0, 0.6, 1]
+            glow.duration = 0.5
+            focusMark.layer.add(glow, forKey: "focusSettled")
         }
 
         /// Volume buttons take a photo on iOS 17.2 and later. Primary is volume down, secondary is

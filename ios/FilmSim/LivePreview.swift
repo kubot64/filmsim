@@ -250,18 +250,22 @@ struct CameraPreview: UIViewRepresentable {
         }
 
         /// Darkens the preview briefly. The photo output already plays the shutter sound.
+        /// A layer animation: a `UIView.animate` alpha fade here showed nothing on the iPhone 15 Pro
+        /// Max, for a reason not found (animations were enabled). The model opacity stays 0, so only
+        /// the animation shows the veil.
         func flashShutter() {
             shutterVeil.frame = bounds
             bringSubviewToFront(shutterVeil)
-            shutterVeil.layer.removeAllAnimations()
-            shutterVeil.alpha = 0.92
-            UIView.animate(withDuration: 0.2, delay: 0.04, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
-                self.shutterVeil.alpha = 0
-            }
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = [0.92, 0.92, 0]
+            fade.keyTimes = [0, 0.15, 1]
+            fade.timingFunctions = [CAMediaTimingFunction(name: .linear), CAMediaTimingFunction(name: .easeOut)]
+            fade.duration = 0.26
+            shutterVeil.layer.add(fade, forKey: "shutterFlash")
         }
 
         /// Shows the focus frame green for a moment, then back to white or yellow. A layer animation,
-        /// like `flashShutter`, so it shows from SwiftUI's view update; the model colour stays as set.
+        /// like `flashShutter`; the model colour stays as set.
         func flashFocusSettled() {
             let glow = CAKeyframeAnimation(keyPath: "borderColor")
             let green = UIColor.systemGreen.cgColor
@@ -301,7 +305,7 @@ struct CameraPreview: UIViewRepresentable {
         override func layoutSubviews() {
             super.layoutSubviews()
             metalView.frame = bounds
-            // Keep the veil's frame out of the shutter fade, which only animates its alpha.
+            // Keep the veil's frame out of the shutter fade, which only animates its layer's opacity.
             if shutterVeil.frame != bounds {
                 UIView.performWithoutAnimation { shutterVeil.frame = bounds }
             }

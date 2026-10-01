@@ -5,13 +5,12 @@ import Photos
 import UniformTypeIdentifiers
 
 /// What `developAndSave` did. The screens turn this into Japanese status text.
+/// `developFailed` and `savedDNGOnly` set `reason` only for a setup failure (kernels, or this
+/// recipe's LUT). After setup, a RAW read or HEIC encode failure leaves it nil.
 enum DevelopSaveResult {
     case permissionDenied
-    /// `reason` is why this attempt could not be set up (kernels, or this recipe's LUT).
-    /// Nil when the RAW itself could not be developed.
     case developFailed(reason: String?)
     case saveFailed(localizedDescription: String)
-    /// `reason` is the same as `developFailed`: this attempt's setup failure, or nil for the RAW.
     case savedDNGOnly(reason: String?)
     case savedHEICAndDNG
     case savedHEIC

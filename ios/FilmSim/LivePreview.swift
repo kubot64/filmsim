@@ -3,8 +3,8 @@ import AVKit
 import CoreImage
 import FilmSimCore
 import MetalKit
-import os
 import SwiftUI
+import os
 
 /// Draws camera frames through the film simulation for the live preview (#50).
 ///
@@ -12,7 +12,9 @@ import SwiftUI
 /// video, not RAW, so tone and highlights differ. Grain is left off. Frames arrive in the
 /// sensor-native orientation and get the same focal-length crop as the develop step
 /// (`croppedThreeByTwo`), then a 90° clockwise turn into the portrait view (`PreviewGeometry`).
-final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, MTKViewDelegate, @unchecked Sendable {
+final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, MTKViewDelegate, @unchecked
+    Sendable
+{
     let device: MTLDevice
     let sampleQueue = DispatchQueue(label: "PreviewRenderer.frames")
     private let commandQueue: MTLCommandQueue
@@ -37,10 +39,12 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
         self.device = device
         self.commandQueue = commandQueue
         // The same queue as the command buffers the frames are drawn and presented with.
-        context = CIContext(mtlCommandQueue: commandQueue, options: [
-            .workingColorSpace: Self.linearP3,
-            .cacheIntermediates: false,
-        ])
+        context = CIContext(
+            mtlCommandQueue: commandQueue,
+            options: [
+                .workingColorSpace: Self.linearP3,
+                .cacheIntermediates: false
+            ])
     }
 
     /// Nil `pipeline` (a LUT failed to load) shows the plain frame.
@@ -57,7 +61,9 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
         lock.withLock { self.focalLength = focalLength }
     }
 
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    func captureOutput(
+        _ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection
+    ) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let image = CIImage(cvPixelBuffer: buffer)
         let shouldDraw = lock.withLock { () -> Bool in
@@ -75,11 +81,14 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     func draw(in view: MTKView) {
-        let (frame, pipeline, recipe, focalLength) = lock.withLock { (self.frame, self.pipeline, self.recipe, self.focalLength) }
+        let (frame, pipeline, recipe, focalLength) = lock.withLock {
+            (self.frame, self.pipeline, self.recipe, self.focalLength)
+        }
         let size = view.drawableSize
         guard let frame, size.width > 0, size.height > 0,
-              let drawable = view.currentDrawable,
-              let commandBuffer = commandQueue.makeCommandBuffer() else { return }
+            let drawable = view.currentDrawable,
+            let commandBuffer = commandQueue.makeCommandBuffer()
+        else { return }
 
         // Scale down before the look so the kernels run at screen size, not sensor size.
         var image = frame.livePreviewFrame(focalLength: focalLength, filling: size)
@@ -296,7 +305,8 @@ struct CameraPreview: UIViewRepresentable {
         }
 
         private func focus(at location: CGPoint, lock: Bool) {
-            guard let p = PreviewGeometry.focusViewPoint(forTap: location, in: bounds, frameSize: focusMark.bounds.size) else { return }
+            guard let p = PreviewGeometry.focusViewPoint(forTap: location, in: bounds, frameSize: focusMark.bounds.size)
+            else { return }
             onFocus?(p, lock)
             focusMark.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
             UIView.animate(withDuration: 0.2) { self.focusMark.transform = .identity }
@@ -310,7 +320,8 @@ struct CameraPreview: UIViewRepresentable {
                 UIView.performWithoutAnimation { shutterVeil.frame = bounds }
             }
             let image = PreviewGeometry.imageRect(in: bounds)
-            focusMark.center = CGPoint(x: image.minX + focusPoint.x * image.width, y: image.minY + focusPoint.y * image.height)
+            focusMark.center = CGPoint(
+                x: image.minX + focusPoint.x * image.width, y: image.minY + focusPoint.y * image.height)
             focusMark.layer.borderColor = (isLocked ? UIColor.systemYellow : UIColor.white).cgColor
 
             // Above the frame as the holder sees it; below it if that would leave the view.
@@ -320,7 +331,8 @@ struct CameraPreview: UIViewRepresentable {
             let gap = focusMark.bounds.height / 2 + 12
             let above = CGPoint(x: 0, y: -gap).applying(turn)
             let candidate = CGPoint(x: focusMark.center.x + above.x, y: focusMark.center.y + above.y)
-            lockLabel.center = bounds.insetBy(dx: 40, dy: 12).contains(candidate)
+            lockLabel.center =
+                bounds.insetBy(dx: 40, dy: 12).contains(candidate)
                 ? candidate
                 : CGPoint(x: focusMark.center.x - above.x, y: focusMark.center.y - above.y)
         }

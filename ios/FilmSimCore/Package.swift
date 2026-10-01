@@ -5,10 +5,10 @@ let package = Package(
     name: "FilmSimCore",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
-        .library(name: "FilmSimCore", targets: ["FilmSimCore"]),
+        .library(name: "FilmSimCore", targets: ["FilmSimCore"])
     ],
     targets: [
         .target(name: "FilmSimCore"),
-        .testTarget(name: "FilmSimCoreTests", dependencies: ["FilmSimCore"]),
+        .testTarget(name: "FilmSimCoreTests", dependencies: ["FilmSimCore"])
     ]
 )

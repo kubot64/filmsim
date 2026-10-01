@@ -96,7 +96,8 @@ final class ShotStore: ObservableObject {
 
     private func save() {
         do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try log.encoded.write(to: url, options: .atomic)
         } catch {
             // The photo is already in the library; only the review screen loses this entry.

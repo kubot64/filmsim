@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 /// Property tests: rules that must hold for every input. Most throw thousands of random inputs

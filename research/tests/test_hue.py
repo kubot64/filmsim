@@ -27,7 +27,9 @@ def test_neutrals_and_colours_outside_the_window_stay_put():
 
 def test_rotates_orange_toward_red_and_keeps_luma_and_chroma():
     orange = np.array([0.8, 0.45, 0.2])
-    out = rotate_warm_hues(orange, -8, float(hue_degrees(orange)), 40)  # at the window centre: full -8
+    out = rotate_warm_hues(
+        orange, -8, float(hue_degrees(orange)), 40
+    )  # at the window centre: full -8
     assert hue_degrees(out) == pytest.approx(hue_degrees(orange) - 8, abs=0.05)
     y0, cb0, cr0 = to_ycbcr(orange)
     y1, cb1, cr1 = to_ycbcr(out)

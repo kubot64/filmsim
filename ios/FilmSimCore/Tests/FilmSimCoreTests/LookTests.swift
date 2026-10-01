@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 final class LookTests: XCTestCase {
@@ -48,7 +49,8 @@ final class LookTests: XCTestCase {
     }
 
     func testImportNamesStayOneFileInTheFolder() {
-        XCTAssertEqual(ImportedLUT.name(forFileName: "FLog2_to_ETERNA_65grid_V.1.00.cube"), "FLog2_to_ETERNA_65grid_V.1.00")
+        XCTAssertEqual(
+            ImportedLUT.name(forFileName: "FLog2_to_ETERNA_65grid_V.1.00.cube"), "FLog2_to_ETERNA_65grid_V.1.00")
         XCTAssertEqual(ImportedLUT.name(forFileName: "../evil.CUBE"), "_evil")
         XCTAssertEqual(ImportedLUT.name(forFileName: ".cube"), "LUT")
     }

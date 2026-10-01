@@ -111,7 +111,8 @@ final class LUTLibrary: ObservableObject {
 
     private func refresh() {
         let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-        names = files
+        names =
+            files
             .filter { $0.pathExtension.lowercased() == "cube" }
             .map { $0.deletingPathExtension().lastPathComponent }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }

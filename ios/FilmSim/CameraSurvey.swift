@@ -46,7 +46,8 @@ enum CameraSurvey {
     private static func check(_ device: AVCaptureDevice) -> CameraRawSupport {
         let name = "\(device.position == .front ? "前面" : "背面") \(device.localizedName)"
         func failed(_ message: String) -> CameraRawSupport {
-            CameraRawSupport(id: device.uniqueID, name: name, bayerRAW: false, proRAW: false, maxPhotoSize: "", error: message)
+            CameraRawSupport(
+                id: device.uniqueID, name: name, bayerRAW: false, proRAW: false, maxPhotoSize: "", error: message)
         }
 
         let session = AVCaptureSession()

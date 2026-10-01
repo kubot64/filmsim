@@ -50,7 +50,7 @@ public enum LUTInputDetection {
         ("l[-_ .]?log", "L-Log"),
         ("d[-_ .]?log", "D-Log"),
         ("log[-_ .]?c(?![a-z])", "ARRI LogC"),
-        ("log3g10", "RED Log3G10"),
+        ("log3g10", "RED Log3G10")
     ]
 
     /// TITLE and comment lines before the table. The table itself is only numbers.

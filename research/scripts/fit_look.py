@@ -61,17 +61,25 @@ def load_pair(raw: Path, ev: float) -> tuple[np.ndarray, np.ndarray]:
     ch, cw = round(size[1] * CENTER_FRACTION), round(size[0] * CENTER_FRACTION)
     lin, ref = crop_center(lin, ch, cw), crop_center(ref, ch, cw)
 
-    log = np.clip(FLOG2.encode(np.clip(lin * 2.0 ** ev, 0.0, None)), 0.0, 1.0).reshape(-1, 3)
+    log = np.clip(FLOG2.encode(np.clip(lin * 2.0**ev, 0.0, None)), 0.0, 1.0).reshape(-1, 3)
     out = ref.reshape(-1, 3)
     usable = (out.min(axis=1) > CLIP_MARGIN) & (out.max(axis=1) < 1 - CLIP_MARGIN)
     return log[usable], out[usable]
 
 
-def fit(pairs: list[tuple[np.ndarray, np.ndarray]], size: int, smoothness: float, prior: CubeLUT | None, title: str) -> CubeLUT:
+def fit(
+    pairs: list[tuple[np.ndarray, np.ndarray]],
+    size: int,
+    smoothness: float,
+    prior: CubeLUT | None,
+    title: str,
+) -> CubeLUT:
     x = np.concatenate([p[0] for p in pairs])
     y = np.concatenate([p[1] for p in pairs])
     xb, yb, counts = bin_pairs(x, y)
-    return fit_lut(xb, yb, size=size, smoothness=smoothness, prior=prior, weights=counts, title=title)
+    return fit_lut(
+        xb, yb, size=size, smoothness=smoothness, prior=prior, weights=counts, title=title
+    )
 
 
 def main() -> None:
@@ -79,10 +87,19 @@ def main() -> None:
     ap.add_argument("raws", nargs="+", type=Path)
     ap.add_argument("--out", type=Path, required=True, help=".cube to write, on the fit grid")
     ap.add_argument("--title", default="fitted look")
-    ap.add_argument("--ev", type=float, default=0.0, help="exposure before F-Log2, same for every pair")
-    ap.add_argument("--size", type=int, default=33, help="LUT grid (33 is about 1 MB; 65 would be 8 MB and no better)")
+    ap.add_argument(
+        "--ev", type=float, default=0.0, help="exposure before F-Log2, same for every pair"
+    )
+    ap.add_argument(
+        "--size",
+        type=int,
+        default=33,
+        help="LUT grid (33 is about 1 MB; 65 would be 8 MB and no better)",
+    )
     ap.add_argument("--smoothness", type=float, default=1e-3)
-    ap.add_argument("--prior", type=Path, help="LUT the fit falls back to where the photos say nothing")
+    ap.add_argument(
+        "--prior", type=Path, help="LUT the fit falls back to where the photos say nothing"
+    )
     args = ap.parse_args()
 
     prior = CubeLUT.load(args.prior) if args.prior else None

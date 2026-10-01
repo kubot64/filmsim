@@ -82,7 +82,9 @@ struct CameraView: View {
     private var topBar: some View {
         HStack {
             Spacer()
-            Button { showsSettings = true } label: {
+            Button {
+                showsSettings = true
+            } label: {
                 Image(systemName: "gearshape")
                     .font(.title3)
                     .foregroundStyle(.white)
@@ -146,7 +148,9 @@ struct CameraView: View {
         HStack(spacing: 8) {
             ForEach(FocalLength.allCases, id: \.self) { focal in
                 let selected = focal == camera.focalLength
-                Button { camera.setFocalLength(focal) } label: {
+                Button {
+                    camera.setFocalLength(focal)
+                } label: {
                     Text("\(focal.rawValue)")
                         .font(.footnote.weight(.semibold))
                         .monospacedDigit()
@@ -163,8 +167,12 @@ struct CameraView: View {
 
     /// The last shot. Spins while the next one is developing, then shows that photo. Opens review (#57).
     private var thumbnail: some View {
-        Button { showsReview = true } label: { thumbnailImage }
-            .accessibilityLabel(camera.isDeveloping ? "現像中。撮った写真を見る" : "撮った写真を見る")
+        Button {
+            showsReview = true
+        } label: {
+            thumbnailImage
+        }
+        .accessibilityLabel(camera.isDeveloping ? "現像中。撮った写真を見る" : "撮った写真を見る")
     }
 
     private var thumbnailImage: some View {
@@ -212,7 +220,9 @@ struct CameraView: View {
                 .rotationEffect(.degrees(rotation))
                 .frame(width: 52, height: 52)
                 .background(.black.opacity(adjustingExposure ? 0.7 : 0.4), in: Circle())
-                .overlay(Circle().stroke(adjustingExposure ? Color.yellow : .white.opacity(0.6), lineWidth: adjustingExposure ? 2 : 1))
+                .overlay(
+                    Circle().stroke(
+                        adjustingExposure ? Color.yellow : .white.opacity(0.6), lineWidth: adjustingExposure ? 2 : 1))
         }
         .disabled(!camera.isReady)
         .accessibilityLabel("露出補正 \(ExposureCompensation.label(camera.exposureBias))")
@@ -343,11 +353,11 @@ private struct ExposureDial: View {
     }
 }
 
-private extension View {
+extension View {
     /// Calls `report` with whether the scroll view is being touched or still moving. iOS 17 has no
     /// scroll phase, so there it never reports and the dial simply closes 3 seconds after its last change.
     @ViewBuilder
-    func reportsScrolling(_ report: @escaping (Bool) -> Void) -> some View {
+    fileprivate func reportsScrolling(_ report: @escaping (Bool) -> Void) -> some View {
         if #available(iOS 18.0, *) {
             onScrollPhaseChange { _, phase in report(phase != .idle) }
         } else {

@@ -56,7 +56,8 @@ public enum Grain {
         // Scale uniform [0, 1] noise to mean 0, std ≈ 1 after the blur (ColorMatrixVectors rows).
         var matrix = ColorMatrixVectors(r: [gain, 0, 0], g: [0, 0, 0], b: [0, 0, 0]).ciColorMatrixParameters
         matrix["inputBiasVector"] = CIVector(x: CGFloat(-0.5 * gain), y: 0, z: 0, w: 0)
-        let noise = random
+        let noise =
+            random
             .cropped(to: expanded)
             .applyingFilter("CIColorMatrix", parameters: matrix)
             .clampedToExtent()

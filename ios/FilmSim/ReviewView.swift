@@ -48,7 +48,9 @@ struct ReviewView: View {
             }
         }
         .overlay(alignment: .topLeading) {
-            Button { dismiss() } label: {
+            Button {
+                dismiss()
+            } label: {
                 Image(systemName: "xmark")
                     .font(.title3)
                     .foregroundStyle(.white)
@@ -63,7 +65,9 @@ struct ReviewView: View {
             DragGesture(minimumDistance: 20)
                 .onChanged { value in
                     // Only a mostly vertical drag; sideways drags page through the photos.
-                    if abs(value.translation.height) > abs(value.translation.width) { dragDown = value.translation.height }
+                    if abs(value.translation.height) > abs(value.translation.width) {
+                        dragDown = value.translation.height
+                    }
                 }
                 .onEnded { value in
                     if dragDown > 120 { dismiss() } else { withAnimation { dragDown = 0 } }
@@ -149,7 +153,9 @@ struct ReviewView: View {
         .background(.black.opacity(0.6))
     }
 
-    private func barButton(_ title: String, systemImage: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
+    private func barButton(_ title: String, systemImage: String, role: ButtonRole? = nil, action: @escaping () -> Void)
+        -> some View
+    {
         Button(role: role, action: action) {
             VStack(spacing: 4) {
                 Image(systemName: systemImage).font(.title3)
@@ -274,12 +280,16 @@ private struct ShotPage: View {
                 image = await load(size: geo.size)
             }
         }
-        .accessibilityLabel(raw ? "\(shot.recipeName)、\(shot.focalLength.displayName)の RAW" : "\(shot.recipeName)、\(shot.focalLength.displayName)の写真")
+        .accessibilityLabel(
+            raw
+                ? "\(shot.recipeName)、\(shot.focalLength.displayName)の RAW"
+                : "\(shot.recipeName)、\(shot.focalLength.displayName)の写真")
     }
 
     private func load(size: CGSize) async -> UIImage? {
         guard let id = raw ? shot.dngAssetID : shot.heicAssetID,
-              let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else { return nil }
+            let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject
+        else { return nil }
         let scale = UIScreen.main.scale
         let options = PHImageRequestOptions()
         options.isNetworkAccessAllowed = true

@@ -41,6 +41,8 @@ class LogCurve:
         return np.where(y >= self.cut2, log_part, lin_part)
 
 
+# Constants grouped as on the datasheets.
+# fmt: off
 FLOG2 = LogCurve(
     a=5.555556, b=0.064829, c=0.245281, d=0.384316,
     e=8.799461, f=0.092864,
@@ -52,3 +54,4 @@ FLOG = LogCurve(
     e=8.735631, f=0.092864,
     cut1=0.00089, cut2=0.100537775223865,
 )
+# fmt: on

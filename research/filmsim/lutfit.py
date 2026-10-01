@@ -27,7 +27,9 @@ from .cube import CubeLUT
 BIN_CELLS = 128
 
 
-def bin_pairs(x: np.ndarray, y: np.ndarray, cells: int = BIN_CELLS) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def bin_pairs(
+    x: np.ndarray, y: np.ndarray, cells: int = BIN_CELLS
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Average (N, 3) inputs and outputs per input cell. Returns (x, y, pixel count)."""
     x = np.clip(np.asarray(x, dtype=np.float64).reshape(-1, 3), 0.0, 1.0)
     y = np.asarray(y, dtype=np.float64).reshape(-1, 3)
@@ -61,7 +63,7 @@ def _trilinear_matrix(x: np.ndarray, size: int) -> sparse.csr_matrix:
                 cols.append(idx)
                 vals.append(w)
     return sparse.csr_matrix(
-        (np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, size ** 3)
+        (np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, size**3)
     )
 
 
@@ -97,7 +99,7 @@ def fit_lut(
         prior = CubeLUT.identity(size)
     elif prior.size != size:
         prior = resample(prior, size)
-    nodes = size ** 3
+    nodes = size**3
     scale = w.sum() / nodes
 
     a = _trilinear_matrix(x, size)

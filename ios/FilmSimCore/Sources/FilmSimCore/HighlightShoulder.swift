@@ -28,7 +28,7 @@ public enum HighlightShoulder {
             arguments: [
                 image,
                 NSNumber(value: Float(knee)),
-                NSNumber(value: Float(gamma)),
+                NSNumber(value: Float(gamma))
             ]
         ) ?? image
     }

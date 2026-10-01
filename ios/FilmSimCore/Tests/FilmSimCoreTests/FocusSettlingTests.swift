@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 final class FocusSettlingTests: XCTestCase {
@@ -6,7 +7,9 @@ final class FocusSettlingTests: XCTestCase {
     func testCreepingInDoesNotDelayTheSettle() {
         var s = FocusSettling()
         _ = s.lensMoved(to: 0.0)
-        let big = [0.027, 0.051, 0.071, 0.098, 0.114, 0.137, 0.157, 0.173, 0.184, 0.196].map { s.lensMoved(to: Float($0)) }
+        let big = [0.027, 0.051, 0.071, 0.098, 0.114, 0.137, 0.157, 0.173, 0.184, 0.196].map {
+            s.lensMoved(to: Float($0))
+        }
         XCTAssertEqual(big, Array(repeating: true, count: big.count))
         let creep = [0.200, 0.204, 0.208].map { s.lensMoved(to: Float($0)) }
         XCTAssertEqual(creep, [false, false, false])

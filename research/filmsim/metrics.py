@@ -29,8 +29,13 @@ def delta_e_stats(a: np.ndarray, b: np.ndarray) -> dict[str, float]:
 
 LIGHTNESS_BANDS = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 90), (90, 101)]
 HUE_BANDS = [
-    ("red", 0, 40), ("orange", 40, 70), ("yellow", 70, 100), ("green", 100, 160),
-    ("cyan", 160, 220), ("blue", 220, 290), ("magenta", 290, 360),
+    ("red", 0, 40),
+    ("orange", 40, 70),
+    ("yellow", 70, 100),
+    ("green", 100, 160),
+    ("cyan", 160, 220),
+    ("blue", 220, 290),
+    ("magenta", 290, 360),
 ]
 
 
@@ -61,7 +66,9 @@ def delta_e_breakdown(a: np.ndarray, b: np.ndarray, min_share: float = 0.002) ->
             "median": float(np.median(de[mask])),
             "dL": float(np.median(la[mask, 0] - lb[mask, 0])),
             "dC": float(np.median(ca[mask] - cb[mask])),
-            "dh": float(np.median(dh[chromatic])) if chromatic.sum() >= max(1, min_pixels // 2) else float("nan"),
+            "dh": float(np.median(dh[chromatic]))
+            if chromatic.sum() >= max(1, min_pixels // 2)
+            else float("nan"),
         }
 
     rows = [row(f"L* {lo}-{hi}", (lb[:, 0] >= lo) & (lb[:, 0] < hi)) for lo, hi in LIGHTNESS_BANDS]

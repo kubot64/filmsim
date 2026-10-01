@@ -23,6 +23,8 @@ jobs:
       - name: Install
         working-directory: research
         run: uv sync --locked
+      - name: Lint
+        run: make lint-py
       - name: Test
         run: make test-py
 
@@ -33,6 +35,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Toolchain
         run: swift --version && xcodebuild -version
+      - name: Lint
+        run: make lint-swift
       - name: Test
         run: make test-swift
 

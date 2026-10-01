@@ -141,9 +141,13 @@ struct SettingsView: View {
         } header: {
             Text("LUT の読み込み")
         } footer: {
-            Text("3D LUT（.cube）を読み込み、フィルムシミュレーションの一覧に足す。F-Log2 用と S-Log3（S-Gamut3.Cine / S-Gamut3）用に対応し、何用かはファイル名と中身の書き込みから判定する。判定できないものや未対応のものは読み込まない。富士フイルムの公式 F-Log2 用 LUT はそのまま使える。")
+            Text(
+                "3D LUT（.cube）を読み込み、フィルムシミュレーションの一覧に足す。F-Log2 用と S-Log3（S-Gamut3.Cine / S-Gamut3）用に対応し、何用かはファイル名と中身の書き込みから判定する。判定できないものや未対応のものは読み込まない。富士フイルムの公式 F-Log2 用 LUT はそのまま使える。"
+            )
         }
-        .fileImporter(isPresented: $isImporting, allowedContentTypes: [LUTLibrary.cubeType], allowsMultipleSelection: true) { result in
+        .fileImporter(
+            isPresented: $isImporting, allowedContentTypes: [LUTLibrary.cubeType], allowsMultipleSelection: true
+        ) { result in
             switch result {
             case .success(let urls):
                 importMessage = library.importFiles(urls).lines.joined(separator: "\n")
@@ -165,10 +169,11 @@ struct SettingsView: View {
 
     /// Clamped to ±3 here; the camera also clamps to the device's range when it applies the value.
     private func stepExposureBias(by steps: Int) {
-        exposureBias = Double(ExposureCompensation.stepped(
-            Float(exposureBias),
-            by: steps,
-            deviceRange: -ExposureCompensation.limitEV...ExposureCompensation.limitEV
-        ))
+        exposureBias = Double(
+            ExposureCompensation.stepped(
+                Float(exposureBias),
+                by: steps,
+                deviceRange: -ExposureCompensation.limitEV...ExposureCompensation.limitEV
+            ))
     }
 }

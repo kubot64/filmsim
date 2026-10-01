@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 final class CubeLUTTests: XCTestCase {
@@ -40,10 +41,12 @@ final class CubeLUTTests: XCTestCase {
 
     func testRejectsValuesThatAreNotColours() {
         for bad in ["nan", "inf", "-inf", "1e30"] {
-            let rows = unitRows(2).replacingOccurrences(of: "0.5 0.5 0.5\n", with: "\(bad) 0.5 0.5\n", options: .anchored)
+            let rows = unitRows(2).replacingOccurrences(
+                of: "0.5 0.5 0.5\n", with: "\(bad) 0.5 0.5\n", options: .anchored)
             XCTAssertNotNil(error("LUT_3D_SIZE 2\n" + rows), bad)
         }
-        XCTAssertNoThrow(try CubeLUT(text: "LUT_3D_SIZE 2\n" + unitRows(2).replacingOccurrences(of: "0.5", with: "1.25")))
+        XCTAssertNoThrow(
+            try CubeLUT(text: "LUT_3D_SIZE 2\n" + unitRows(2).replacingOccurrences(of: "0.5", with: "1.25")))
     }
 
     func testOnlyTheDefaultDomainIsRead() {

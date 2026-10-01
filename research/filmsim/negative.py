@@ -20,7 +20,7 @@ import numpy as np
 
 from .cube import CubeLUT
 from .flog2 import FLOG2
-from .gamut import BT2020, BT709_LUMA, MIDDLE_GREY, RGBSpace
+from .gamut import BT709_LUMA, BT2020, MIDDLE_GREY, RGBSpace
 
 # Layer order matches the output channels: the cyan-forming layer controls red, and so on.
 LAYERS = ("cyan_forming", "magenta_forming", "yellow_forming")
@@ -31,7 +31,7 @@ def _sensitivity(film: ModuleType, layer: str, wavelengths: np.ndarray) -> np.nd
     table = film.LOG_SENSITIVITY[layer]
     wl = np.array(sorted(table))
     log_s = np.array([table[w] for w in wl])
-    s = np.interp(wavelengths, wl, 10.0 ** log_s, left=0.0, right=0.0)
+    s = np.interp(wavelengths, wl, 10.0**log_s, left=0.0, right=0.0)
     return s
 
 
@@ -52,7 +52,9 @@ def layer_matrix(film: ModuleType, space: RGBSpace = BT2020) -> np.ndarray:
 
     aligned = [sd.copy().align(shape) for sd in patches.values()]
     refl = np.array([sd.values for sd in aligned])
-    xyz = np.array([colour.sd_to_XYZ(sd, cmfs=cmfs, illuminant=illuminant) for sd in aligned]) / 100.0
+    xyz = (
+        np.array([colour.sd_to_XYZ(sd, cmfs=cmfs, illuminant=illuminant) for sd in aligned]) / 100.0
+    )
     rgb = xyz @ space.from_xyz().T
     sens = np.stack([_sensitivity(film, layer, wl) for layer in LAYERS])
     exposure = (refl * d65) @ sens.T
@@ -94,11 +96,11 @@ IDENTITY3 = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 class PrintSettings:
     """How the negative is turned into a positive. Not on the datasheet; fitted to a real scan."""
 
-    contrast: float = 1.35       # print gamma on top of the negative, in log units
-    saturation: float = 1.0      # spread of the channels around their luminance, in log units
-    shadow_stops: float = 7.0    # how far below mid-grey the film base (D-min) prints as black
-    black: float = 0.012         # display-linear floor: paper D-max or a scanner's black point
-    white: float = 1.0           # display-linear ceiling of the print curve
+    contrast: float = 1.35  # print gamma on top of the negative, in log units
+    saturation: float = 1.0  # spread of the channels around their luminance, in log units
+    shadow_stops: float = 7.0  # how far below mid-grey the film base (D-min) prints as black
+    black: float = 0.012  # display-linear floor: paper D-max or a scanner's black point
+    white: float = 1.0  # display-linear ceiling of the print curve
     # The scanner's colour matrix on display-linear RGB. Rows sum to 1, so greys stay grey.
     scan_matrix: tuple[tuple[float, float, float], ...] = IDENTITY3
 
@@ -134,7 +136,9 @@ def tone(film: ModuleType, log_h: np.ndarray) -> np.ndarray:
     return per_channel.mean(axis=-1)
 
 
-def render(linear: np.ndarray, film: ModuleType, settings: PrintSettings, m: np.ndarray | None = None) -> np.ndarray:
+def render(
+    linear: np.ndarray, film: ModuleType, settings: PrintSettings, m: np.ndarray | None = None
+) -> np.ndarray:
     """Scene-linear BT.2020 (..., 3) to sRGB code values in [0, 1]."""
     if m is None:
         m = layer_matrix(film)
@@ -154,10 +158,10 @@ def render(linear: np.ndarray, film: ModuleType, settings: PrintSettings, m: np.
     x = stretched[..., None] + settings.saturation * (x - luma[..., None])
 
     # Print curve: a smooth S in log exposure that keeps mid-grey at 18%.
-    e = MIDDLE_GREY * 10.0 ** x
+    e = MIDDLE_GREY * 10.0**x
     c = settings.contrast
-    k = MIDDLE_GREY ** c * (1 / MIDDLE_GREY - 1)
-    y = e ** c / (e ** c + k)
+    k = MIDDLE_GREY**c * (1 / MIDDLE_GREY - 1)
+    y = e**c / (e**c + k)
     y = settings.black + (settings.white - settings.black) * y
     y = y @ np.asarray(settings.scan_matrix).T
     return colour.cctf_encoding(np.clip(y, 0.0, 1.0), function="sRGB")

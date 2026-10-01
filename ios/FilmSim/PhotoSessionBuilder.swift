@@ -60,11 +60,12 @@ enum PhotoSessionBuilder {
         }
         output.maxPhotoQualityPrioritization = .quality
         session.commitConfiguration()
-        return .success(Configured(
-            maxPhotoSize: maxPhotoSize,
-            sensorAspect: sensorAspect,
-            dimensionList: dimensionList
-        ))
+        return .success(
+            Configured(
+                maxPhotoSize: maxPhotoSize,
+                sensorAspect: sensorAspect,
+                dimensionList: dimensionList
+            ))
     }
 }
 

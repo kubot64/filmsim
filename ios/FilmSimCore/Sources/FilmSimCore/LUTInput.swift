@@ -18,8 +18,10 @@ public enum SLog3 {
 }
 
 extension RGBSpace {
-    public static let sGamut3 = RGBSpace(name: "S-Gamut3", red: [0.730, 0.280], green: [0.140, 0.855], blue: [0.100, -0.050], white: d65)
-    public static let sGamut3Cine = RGBSpace(name: "S-Gamut3.Cine", red: [0.766, 0.275], green: [0.225, 0.800], blue: [0.089, -0.087], white: d65)
+    public static let sGamut3 = RGBSpace(
+        name: "S-Gamut3", red: [0.730, 0.280], green: [0.140, 0.855], blue: [0.100, -0.050], white: d65)
+    public static let sGamut3Cine = RGBSpace(
+        name: "S-Gamut3.Cine", red: [0.766, 0.275], green: [0.225, 0.800], blue: [0.089, -0.087], white: d65)
 }
 
 /// What an imported LUT expects as input. The pipeline feeds every LUT F-Log2 / F-Gamut codes,
@@ -57,9 +59,10 @@ extension CubeLUT {
     public func sample(_ rgb: SIMD3<Double>) -> SIMD3<Double> {
         let n = size
         let p = simd_clamp(rgb, SIMD3(repeating: 0), SIMD3(repeating: 1)) * Double(n - 1)
-        let i0 = SIMD3<Int>(Int(min(p.x.rounded(.down), Double(n - 2))),
-                            Int(min(p.y.rounded(.down), Double(n - 2))),
-                            Int(min(p.z.rounded(.down), Double(n - 2))))
+        let i0 = SIMD3<Int>(
+            Int(min(p.x.rounded(.down), Double(n - 2))),
+            Int(min(p.y.rounded(.down), Double(n - 2))),
+            Int(min(p.z.rounded(.down), Double(n - 2))))
         let f = p - SIMD3<Double>(Double(i0.x), Double(i0.y), Double(i0.z))
         return rgbaData.withUnsafeBytes { buf -> SIMD3<Double> in
             let t = buf.bindMemory(to: Float.self)
@@ -68,10 +71,14 @@ extension CubeLUT {
                 return SIMD3(Double(t[i]), Double(t[i + 1]), Double(t[i + 2]))
             }
             var out = SIMD3<Double>(repeating: 0)
-            for dr in 0...1 { for dg in 0...1 { for db in 0...1 {
-                let w = (dr == 1 ? f.x : 1 - f.x) * (dg == 1 ? f.y : 1 - f.y) * (db == 1 ? f.z : 1 - f.z)
-                out += w * node(i0.x + dr, i0.y + dg, i0.z + db)
-            } } }
+            for dr in 0...1 {
+                for dg in 0...1 {
+                    for db in 0...1 {
+                        let w = (dr == 1 ? f.x : 1 - f.x) * (dg == 1 ? f.y : 1 - f.y) * (db == 1 ? f.z : 1 - f.z)
+                        out += w * node(i0.x + dr, i0.y + dg, i0.z + db)
+                    }
+                }
+            }
             return out
         }
     }

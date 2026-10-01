@@ -7,7 +7,7 @@ from filmsim.lutfit import bin_pairs, fit_lut, resample
 def smooth_look(x: np.ndarray) -> np.ndarray:
     """A made-up look: contrast curve plus a little channel crosstalk."""
     m = np.array([[1.10, -0.07, -0.03], [-0.04, 1.06, -0.02], [-0.02, -0.08, 1.10]])
-    return np.clip((x ** 0.9) @ m.T, 0.0, 1.0)
+    return np.clip((x**0.9) @ m.T, 0.0, 1.0)
 
 
 def test_save_load_round_trip(tmp_path):
@@ -32,7 +32,9 @@ def test_fit_recovers_a_known_look():
 def test_data_that_agrees_with_the_prior_leaves_it_alone():
     """Only the grey-ish middle is observed; the rest of the cube must stay on the prior."""
     rng = np.random.default_rng(2)
-    prior = resample(CubeLUT(9, smooth_look(CubeLUT.identity(9).table), np.zeros(3), np.ones(3)), 17)
+    prior = resample(
+        CubeLUT(9, smooth_look(CubeLUT.identity(9).table), np.zeros(3), np.ones(3)), 17
+    )
     x = 0.4 + 0.2 * rng.random((20_000, 3))
     lut = fit_lut(x, prior.apply(x), size=17, prior=prior)
     corners = CubeLUT.identity(3).table.reshape(-1, 3)

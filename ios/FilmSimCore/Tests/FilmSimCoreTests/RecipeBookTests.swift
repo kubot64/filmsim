@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 final class RecipeBookTests: XCTestCase {
@@ -151,7 +152,8 @@ final class RecipeBookTests: XCTestCase {
     /// Books saved before `createdForLUT` existed still decode.
     func testDecodesABookWithoutCreatedForLUT() {
         let id = UUID()
-        let json = #"{"recipes":[{"id":"\#(id)","name":"x","isHidden":false,"recipe":{"filmSimulation":"provia","exposureEV":0,"wbShiftR":0,"wbShiftB":0,"highlight":0,"shadow":0,"grainStrength":"off","grainSize":"small"}}],"selectedID":"\#(id)"}"#
+        let json =
+            #"{"recipes":[{"id":"\#(id)","name":"x","isHidden":false,"recipe":{"filmSimulation":"provia","exposureEV":0,"wbShiftR":0,"wbShiftB":0,"highlight":0,"shadow":0,"grainStrength":"off","grainSize":"small"}}],"selectedID":"\#(id)"}"#
         let book = RecipeBook.decoded(from: Data(json.utf8))
         XCTAssertEqual(book.recipes.count, 1)
         XCTAssertNil(book.recipes[0].createdForLUT)
@@ -175,18 +177,21 @@ final class ShotLogTests: XCTestCase {
     func testNewestFirst() {
         var log = ShotLog()
         for i in 0..<3 {
-            log.append(ShotRecord(
-                date: Date(timeIntervalSince1970: Double(i)), heicAssetID: "\(i)", dngAssetID: nil,
-                recipeName: "x", recipe: Recipe(), focalLength: .mm35
-            ))
+            log.append(
+                ShotRecord(
+                    date: Date(timeIntervalSince1970: Double(i)), heicAssetID: "\(i)", dngAssetID: nil,
+                    recipeName: "x", recipe: Recipe(), focalLength: .mm35
+                ))
         }
         XCTAssertEqual(log.newestFirst.map(\.heicAssetID), ["2", "1", "0"])
     }
 
     func testRemove() {
         var log = ShotLog()
-        let keep = ShotRecord(date: .now, heicAssetID: "a", dngAssetID: nil, recipeName: "x", recipe: Recipe(), focalLength: .mm35)
-        let drop = ShotRecord(date: .now, heicAssetID: "b", dngAssetID: nil, recipeName: "x", recipe: Recipe(), focalLength: .mm35)
+        let keep = ShotRecord(
+            date: .now, heicAssetID: "a", dngAssetID: nil, recipeName: "x", recipe: Recipe(), focalLength: .mm35)
+        let drop = ShotRecord(
+            date: .now, heicAssetID: "b", dngAssetID: nil, recipeName: "x", recipe: Recipe(), focalLength: .mm35)
         log.append(keep)
         log.append(drop)
         log.remove(id: drop.id)

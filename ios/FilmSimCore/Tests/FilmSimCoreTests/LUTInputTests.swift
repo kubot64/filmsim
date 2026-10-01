@@ -1,13 +1,18 @@
-import simd
 import XCTest
+import simd
+
 @testable import FilmSimCore
 
 final class LUTInputTests: XCTestCase {
     private func identity(_ n: Int) -> CubeLUT {
         var floats: [Float] = []
-        for b in 0..<n { for g in 0..<n { for r in 0..<n {
-            floats += [Float(r), Float(g), Float(b)].map { $0 / Float(n - 1) } + [1]
-        } } }
+        for b in 0..<n {
+            for g in 0..<n {
+                for r in 0..<n {
+                    floats += [Float(r), Float(g), Float(b)].map { $0 / Float(n - 1) } + [1]
+                }
+            }
+        }
         return CubeLUT(title: "identity", size: n, floats: floats)
     }
 
@@ -46,7 +51,8 @@ final class LUTInputTests: XCTestCase {
         XCTAssertEqual(converted.size, 9)
         for (r, g, b) in [(0, 0, 0), (4, 4, 4), (8, 2, 5), (3, 7, 1)] {
             let code = SIMD3(Double(r), Double(g), Double(b)) / 8
-            let expected = simd_clamp(LUTInput.sLog3SGamut3Cine.codes(fromFLog2: code), SIMD3(repeating: 0), SIMD3(repeating: 1))
+            let expected = simd_clamp(
+                LUTInput.sLog3SGamut3Cine.codes(fromFLog2: code), SIMD3(repeating: 0), SIMD3(repeating: 1))
             let (x, y, z) = converted.node(r: r, g: g, b: b)
             XCTAssertEqual(Double(x), expected.x, accuracy: 1e-5)
             XCTAssertEqual(Double(y), expected.y, accuracy: 1e-5)

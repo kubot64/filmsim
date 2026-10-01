@@ -32,7 +32,8 @@ enum LibraryRaw {
     /// Asks for read access the first time. Limited access is enough for the photos this app saved.
     static func canRead() async -> Bool {
         let current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        let status = current == .notDetermined
+        let status =
+            current == .notDetermined
             ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             : current
         return status == .authorized || status == .limited
@@ -43,7 +44,8 @@ enum LibraryRaw {
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil)
         guard let asset = assets.firstObject else { throw LoadError.noAsset }
         let resources = PHAssetResource.assetResources(for: asset)
-        guard let resource = resources.first(where: { isRaw($0) }) ?? resources.first(where: { $0.type == .photo }) else {
+        guard let resource = resources.first(where: { isRaw($0) }) ?? resources.first(where: { $0.type == .photo })
+        else {
             throw LoadError.noData
         }
         let data = try await requestData(resource)

@@ -65,5 +65,10 @@ def test_shoulder_keeps_rgb_ratios():
 
 def test_shoulder_golden_points():
     # Swift / Metal must reproduce these (knee 0.6, gamma 0.5, BT.709 luma).
-    for v, expected in [(0.7, 0.721353129146), (0.8, 0.8472135955), (0.9, 0.94107653273), (0.95, 0.973618990031)]:
+    for v, expected in [
+        (0.7, 0.721353129146),
+        (0.8, 0.8472135955),
+        (0.9, 0.94107653273),
+        (0.95, 0.973618990031),
+    ]:
         assert x_series_shoulder(_grey(v))[0, 0] == pytest.approx(expected, abs=1e-11)

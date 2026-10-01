@@ -62,7 +62,11 @@ def resize_linear(img: np.ndarray, size: tuple[int, int]) -> np.ndarray:
     Stays in float, so averaging happens on linear light without 8-bit quantisation.
     """
     channels = [
-        np.asarray(Image.fromarray(np.ascontiguousarray(img[..., c], dtype=np.float32)).resize(size, Image.Resampling.BOX))
+        np.asarray(
+            Image.fromarray(np.ascontiguousarray(img[..., c], dtype=np.float32)).resize(
+                size, Image.Resampling.BOX
+            )
+        )
         for c in range(img.shape[-1])
     ]
     return np.stack(channels, axis=-1)

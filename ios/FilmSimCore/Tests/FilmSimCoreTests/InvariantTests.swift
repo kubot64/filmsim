@@ -41,7 +41,9 @@ final class InvariantTests: XCTestCase {
     }
 
     /// INV-FLOG2-3: the pieces meet with only the datasheet's rounding step (`seamStep`, linear
-    /// side higher), and cut2 is where cut1 lands, so decode switches pieces where encode does.
+    /// side higher), and cut2 is where cut1 lands on the log side. Codes from cut2 up to cut2 +
+    /// seamStep come from both pieces; decode takes them as log, so x just below cut1 comes back
+    /// through the other piece. That is the 4e-9 the round trip allows.
     func testFLog2PiecesJoin() {
         XCTAssertGreaterThan(seamStep, 0)
         XCTAssertLessThan(seamStep, 1e-7)

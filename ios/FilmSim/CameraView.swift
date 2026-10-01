@@ -35,6 +35,7 @@ struct CameraView: View {
                 isLocked: camera.isAEAFLocked,
                 controlRotation: rotation,
                 shutterFlash: camera.shutterFlash,
+                focusSettled: camera.focusSettled,
                 hardwareShutterEnabled: camera.isReady && !showsSettings && !showsReview,
                 onFocus: { point, lock in
                     camera.focusAndExpose(atView: point, lock: lock)

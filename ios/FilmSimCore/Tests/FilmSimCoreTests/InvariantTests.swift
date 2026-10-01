@@ -38,14 +38,13 @@ final class InvariantTests: XCTestCase {
                 XCTAssertLessThanOrEqual(FLog2.encode(lo), FLog2.encode(hi) + seamStep, "lo=\(lo) hi=\(hi)")
             }
         }
-        XCTAssertLessThan(seamStep, 1e-7)
     }
 
-    /// INV-FLOG2-3: the linear and log pieces meet without a step, and cut2 is where cut1 lands.
+    /// INV-FLOG2-3: the pieces meet with only the datasheet's rounding step (`seamStep`, linear
+    /// side higher), and cut2 is where cut1 lands, so decode switches pieces where encode does.
     func testFLog2PiecesJoin() {
-        let linear = FLog2.e * FLog2.cut1 + FLog2.f
-        let log = FLog2.c * log10(FLog2.a * FLog2.cut1 + FLog2.b) + FLog2.d
-        XCTAssertEqual(linear, log, accuracy: 1e-6)
+        XCTAssertGreaterThan(seamStep, 0)
+        XCTAssertLessThan(seamStep, 1e-7)
         XCTAssertEqual(FLog2.encode(FLog2.cut1), FLog2.cut2, accuracy: 1e-9)
     }
 

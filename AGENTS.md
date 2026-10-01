@@ -12,6 +12,10 @@ issue は GitHub の kubot64/filmsim で管理し、`gh` CLI で操作する。�
 
 single-context 構成で、リポジトリ直下に `CONTEXT.md` と `docs/adr/` を置く。詳しくは `docs/agents/domain.md`。
 
+### Coding
+
+研究側の Python を正とし、Swift に写す。Core とアプリの境界、テスト、言葉、コミットの約束は `docs/agents/coding.md`。
+
 ## ドキュメント
 
 同じことを 2 か所に書かない。書く場所は中身の種類で決まる。

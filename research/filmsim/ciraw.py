@@ -33,7 +33,9 @@ def load_raw_linear_ciraw(path: str | Path) -> tuple[np.ndarray, dict]:
     baseline exposure, and keeps values above 1.0.
     """
     with tempfile.NamedTemporaryFile(suffix=".f32") as tmp:
-        out = subprocess.run([str(_helper()), str(path), tmp.name], check=True, capture_output=True, text=True)
+        out = subprocess.run(
+            [str(_helper()), str(path), tmp.name], check=True, capture_output=True, text=True
+        )
         info = json.loads(out.stdout)
         img = np.fromfile(tmp.name, dtype=np.float32).reshape(info["height"], info["width"], 3)
     return img, info

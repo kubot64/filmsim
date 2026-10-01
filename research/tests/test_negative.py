@@ -14,7 +14,11 @@ COMMITTED = Path(__file__).parents[2] / "ios/FilmSim/LUTs/Portra400VC_65grid.cub
 
 def lch(srgb: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     lab = colour.XYZ_to_Lab(colour.sRGB_to_XYZ(srgb))
-    return lab[..., 0], np.hypot(lab[..., 1], lab[..., 2]), np.degrees(np.arctan2(lab[..., 2], lab[..., 1])) % 360
+    return (
+        lab[..., 0],
+        np.hypot(lab[..., 1], lab[..., 2]),
+        np.degrees(np.arctan2(lab[..., 2], lab[..., 1])) % 360,
+    )
 
 
 def colorchecker_linear() -> np.ndarray:
@@ -22,7 +26,9 @@ def colorchecker_linear() -> np.ndarray:
     cmfs = colour.MSDS_CMFS["CIE 1931 2 Degree Standard Observer"].copy().align(shape)
     d65 = colour.SDS_ILLUMINANTS["D65"].copy().align(shape)
     sds = colour.SDS_COLOURCHECKERS["ColorChecker N Ohta"].values()
-    xyz = np.array([colour.sd_to_XYZ(sd.copy().align(shape), cmfs=cmfs, illuminant=d65) / 100 for sd in sds])
+    xyz = np.array(
+        [colour.sd_to_XYZ(sd.copy().align(shape), cmfs=cmfs, illuminant=d65) / 100 for sd in sds]
+    )
     return xyz @ BT2020.from_xyz().T
 
 
@@ -33,7 +39,7 @@ def test_layer_matrix_keeps_neutrals_neutral():
 
 def test_greys_stay_neutral_from_black_to_white():
     stops = np.linspace(-7, 3, 41)
-    grey = np.repeat((0.18 * 2.0 ** stops)[:, None], 3, axis=1)
+    grey = np.repeat((0.18 * 2.0**stops)[:, None], 3, axis=1)
     _, chroma, _ = lch(render(grey, portra400vc, PORTRA_400VC))
     assert chroma.max() < 1.0
 
@@ -46,14 +52,14 @@ def test_mid_grey_prints_near_18_percent():
 
 def test_tone_rises_monotonically():
     stops = np.linspace(-8, 4, 97)
-    grey = np.repeat((0.18 * 2.0 ** stops)[:, None], 3, axis=1)
+    grey = np.repeat((0.18 * 2.0**stops)[:, None], 3, axis=1)
     out = render(grey, portra400vc, PORTRA_400VC)[:, 1]
     assert np.all(np.diff(out) >= 0)
 
 
 def test_colorchecker_matches_the_real_scan():
     """The settings were fitted to a Portra 400VC scan of a ColorChecker (portra400vc_scan)."""
-    lin = colorchecker_linear() * 2.0 ** portra400vc_scan.SCAN_EXPOSURE_EV
+    lin = colorchecker_linear() * 2.0**portra400vc_scan.SCAN_EXPOSURE_EV
     out = colour.XYZ_to_Lab(colour.sRGB_to_XYZ(render(lin, portra400vc, PORTRA_400VC)))
     de = colour.delta_E(out, np.array(portra400vc_scan.SCAN_LAB), method="CIE 2000")
     assert de.mean() < 3.5

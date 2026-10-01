@@ -28,7 +28,7 @@ def unit_noise_gain(sigma: float) -> float:
     x = np.arange(-lw, lw + 1, dtype=np.float64)
     kernel = np.exp(-0.5 * (x / sigma) ** 2)
     kernel /= kernel.sum()
-    sum_of_squares = float(np.sum(kernel ** 2))
+    sum_of_squares = float(np.sum(kernel**2))
     return 1.0 / (std_in * sum_of_squares)
 
 
@@ -38,7 +38,9 @@ def grain_weight(lum: np.ndarray) -> np.ndarray:
     return np.sqrt(lum) * (1.0 - lum) * 2.0
 
 
-def add_grain(img: np.ndarray, strength: str = "weak", size: str = "small", seed: int = 0) -> np.ndarray:
+def add_grain(
+    img: np.ndarray, strength: str = "weak", size: str = "small", seed: int = 0
+) -> np.ndarray:
     """Add grain to a display-referred (..., 3) image in [0, 1]."""
     amp = STRENGTH[strength]
     if amp == 0.0:

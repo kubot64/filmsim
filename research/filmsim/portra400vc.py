@@ -33,6 +33,8 @@ from __future__ import annotations
 
 LOG_H_REF = -1.44
 
+# Rows follow the datasheet tables.
+# fmt: off
 LOG_EXPOSURE_LUX_SECONDS: tuple[float, ...] = (
     -3.4, -3.3, -3.2, -3.1, -3.0, -2.9, -2.8, -2.7,
     -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9,
@@ -108,3 +110,4 @@ LOG_SENSITIVITY: dict[str, dict[int, float]] = {
         610: 2.44, 620: 2.48, 630: 2.46, 640: 2.19, 650: 1.45, 660: 0.63,
     },
 }
+# fmt: on

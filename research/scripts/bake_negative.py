@@ -20,7 +20,9 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--size", type=int, default=65)
     args = ap.parse_args()
-    lut = bake_lut(portra400vc, PORTRA_400VC, size=args.size, title="Portra 400VC (datasheet model)")
+    lut = bake_lut(
+        portra400vc, PORTRA_400VC, size=args.size, title="Portra 400VC (datasheet model)"
+    )
     lut.save(args.out)
     print(f"wrote {args.out}")
 

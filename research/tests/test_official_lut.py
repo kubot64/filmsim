@@ -10,7 +10,9 @@ OFFICIAL = Path(__file__).resolve().parents[1] / "luts" / "official"
 PROVIA = OFFICIAL / "FLog2_to_PROVIA_65grid_V.1.00.cube"
 
 
-@pytest.mark.skipif(not PROVIA.exists(), reason="run scripts/fetch_luts.sh to get the official LUTs")
+@pytest.mark.skipif(
+    not PROVIA.exists(), reason="run scripts/fetch_luts.sh to get the official LUTs"
+)
 def test_official_provia_maps_grey_sensibly():
     lut = CubeLUT.load(PROVIA)
     assert lut.size == 65

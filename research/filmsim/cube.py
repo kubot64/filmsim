@@ -17,13 +17,13 @@ class CubeLUT:
     title: str = ""
 
     @classmethod
-    def identity(cls, size: int = 33) -> "CubeLUT":
+    def identity(cls, size: int = 33) -> CubeLUT:
         g = np.linspace(0.0, 1.0, size)
         r, gg, b = np.meshgrid(g, g, g, indexing="ij")
         return cls(size, np.stack([r, gg, b], axis=-1), np.zeros(3), np.ones(3), "identity")
 
     @classmethod
-    def load(cls, path: str | Path) -> "CubeLUT":
+    def load(cls, path: str | Path) -> CubeLUT:
         size = None
         title = ""
         dmin = np.zeros(3)
@@ -49,8 +49,8 @@ class CubeLUT:
         if size is None:
             raise ValueError(f"{path}: LUT_3D_SIZE missing")
         data = np.asarray(rows, dtype=np.float64)
-        if data.shape != (size ** 3, 3):
-            raise ValueError(f"{path}: expected {size ** 3} rows, got {data.shape[0]}")
+        if data.shape != (size**3, 3):
+            raise ValueError(f"{path}: expected {size**3} rows, got {data.shape[0]}")
         # .cube order: red varies fastest, then green, then blue -> reshape as [b, g, r]
         table = data.reshape(size, size, size, 3).transpose(2, 1, 0, 3)
         return cls(size, table, dmin, dmax, title)
@@ -70,7 +70,9 @@ class CubeLUT:
     def apply(self, img: np.ndarray) -> np.ndarray:
         """Trilinear interpolation on an (..., 3) float image in [domain_min, domain_max]."""
         n = self.size
-        x = (np.asarray(img, dtype=np.float64) - self.domain_min) / (self.domain_max - self.domain_min)
+        x = (np.asarray(img, dtype=np.float64) - self.domain_min) / (
+            self.domain_max - self.domain_min
+        )
         x = np.clip(x, 0.0, 1.0) * (n - 1)
         i0 = np.floor(x).astype(int)
         i0 = np.minimum(i0, n - 2)

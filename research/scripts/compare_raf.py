@@ -22,7 +22,14 @@ import numpy as np
 from filmsim import F_GAMUT, P3_D65, CubeLUT, Recipe, render
 from filmsim.looks import film_sim_key
 from filmsim.metrics import delta_e_breakdown, delta_e_stats
-from filmsim.rawio import crop_center, load_raw_linear, load_srgb, resize_linear, resize_to, save_srgb
+from filmsim.rawio import (
+    crop_center,
+    load_raw_linear,
+    load_srgb,
+    resize_linear,
+    resize_to,
+    save_srgb,
+)
 
 # Compare at reduced size: ΔE is about colour, not sharpness. The linear image is
 # shrunk before rendering, so each EV step renders ~1M pixels instead of ~40M.
@@ -37,8 +44,12 @@ def main() -> None:
     ap.add_argument("--ev", type=float, default=0.0)
     ap.add_argument("--sweep-ev", nargs=3, type=float, metavar=("START", "STOP", "STEP"))
     ap.add_argument("--out", type=Path, help="directory for side-by-side PNGs")
-    ap.add_argument("--engine", choices=["libraw", "ciraw"], default="libraw", help="RAW linearisation")
-    ap.add_argument("--breakdown", action="store_true", help="split ΔE at the best EV by lightness and hue")
+    ap.add_argument(
+        "--engine", choices=["libraw", "ciraw"], default="libraw", help="RAW linearisation"
+    )
+    ap.add_argument(
+        "--breakdown", action="store_true", help="split ΔE at the best EV by lightness and hue"
+    )
     args = ap.parse_args()
 
     lut = CubeLUT.load(args.lut)
@@ -63,7 +74,9 @@ def main() -> None:
 
     best = None
     for ev in evs:
-        out_small = render(linear_small, Recipe(film_sim=sim, exposure_ev=ev), {sim: lut}, input_space=space)
+        out_small = render(
+            linear_small, Recipe(film_sim=sim, exposure_ev=ev), {sim: lut}, input_space=space
+        )
         stats = delta_e_stats(out_small, ref_small)
         print(f"ev={ev:+.2f}  " + "  ".join(f"{k}={v:.2f}" for k, v in stats.items()))
         if best is None or stats["median"] < best[1]["median"]:
@@ -74,7 +87,9 @@ def main() -> None:
     if args.breakdown:
         print("\nband          share  medΔE     ΔL     ΔC      Δh   (ours − camera)")
         for r in delta_e_breakdown(out_small, ref_small):
-            print(f"{r['band']:12s} {r['share'] * 100:5.1f}%  {r['median']:5.2f}  {r['dL']:+5.2f}  {r['dC']:+5.2f}  {r['dh']:+6.1f}°")
+            print(
+                f"{r['band']:12s} {r['share'] * 100:5.1f}%  {r['median']:5.2f}  {r['dL']:+5.2f}  {r['dC']:+5.2f}  {r['dh']:+6.1f}°"
+            )
     if args.out:
         args.out.mkdir(parents=True, exist_ok=True)
         save_srgb(args.out / "render.png", out_small)

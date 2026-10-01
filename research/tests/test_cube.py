@@ -12,7 +12,7 @@ def test_identity_lut_is_identity():
 
 def test_parse_cube_text(tmp_path):
     # 2x2x2 LUT that swaps R and B; red varies fastest in .cube order
-    lines = ["TITLE \"swap\"", "LUT_3D_SIZE 2"]
+    lines = ['TITLE "swap"', "LUT_3D_SIZE 2"]
     for b in (0, 1):
         for g in (0, 1):
             for r in (0, 1):

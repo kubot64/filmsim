@@ -25,7 +25,7 @@ final class CameraController: NSObject, ObservableObject {
     @Published var status = "起動中…"
     /// A short message the person taking pictures needs, such as a failed save. Shown briefly.
     @Published private(set) var notice: Notice?
-    /// Incremented when a capture starts, so the preview can darken once per shot.
+    /// Incremented when the exposure starts, so the preview darkens with the shutter sound.
     @Published private(set) var shutterFlash = 0
     /// Shots taken and not yet saved or failed. The thumbnail spins while this is above zero.
     private var developingCount = 0
@@ -237,8 +237,6 @@ final class CameraController: NSObject, ObservableObject {
         }
         // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
         inflight[settings.uniqueID] = PendingCapture(recipe: recipe, focalLength: focalLength)
-        // The preview darkens once per shot. The photo output plays the shutter sound; don't add one.
-        shutterFlash += 1
         beginDeveloping()
         output.capturePhoto(with: settings, delegate: self)
     }
@@ -256,6 +254,14 @@ final class CameraController: NSObject, ObservableObject {
 }
 
 extension CameraController: AVCapturePhotoCaptureDelegate {
+    nonisolated func photoOutput(_: AVCapturePhotoOutput, willCapturePhotoFor _: AVCaptureResolvedPhotoSettings) {
+        // Exposure is starting, and the photo output plays the shutter sound now. Don't add one.
+        // This callback is not on the main actor. It fires once per capture request.
+        Task { @MainActor in
+            self.shutterFlash += 1
+        }
+    }
+
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         let id = photo.resolvedSettings.uniqueID
         let isRaw = photo.isRawPhoto

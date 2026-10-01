@@ -125,7 +125,7 @@ struct CameraPreview: UIViewRepresentable {
     var isLocked: Bool
     /// Degrees the AE/AF LOCK label turns to read upright (`HoldingOrientation`).
     var controlRotation: Double
-    /// Bumped by `CameraController` each time a capture starts. The preview darkens once per change.
+    /// Bumped by `CameraController` when the exposure starts. The preview darkens once per change.
     var shutterFlash: Int
     /// While false, volume buttons change the volume. Off when the camera can't shoot or another screen is up.
     var hardwareShutterEnabled: Bool
@@ -257,8 +257,9 @@ struct CameraPreview: UIViewRepresentable {
             if hardwareShutter == nil {
                 let shoot: (AVCaptureEvent) -> Void = { [weak self] event in
                     // Release, not press down: a cancelled press must not take a photo.
+                    // The handler already runs on the main thread.
                     guard event.phase == .ended else { return }
-                    DispatchQueue.main.async { self?.onHardwareShutter?() }
+                    self?.onHardwareShutter?()
                 }
                 let interaction = AVCaptureEventInteraction(primary: shoot, secondary: shoot)
                 interaction.isEnabled = false

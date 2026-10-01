@@ -1,0 +1,20 @@
+# Temporary: runs swift-format on the macOS runner and prints the diff to the log.
+# Removed once the formatted code is pushed (the Linux session has no Swift toolchain).
+name: tmp-swift-format-dump
+on:
+  push:
+    branches: [docs/coding-guide]
+jobs:
+  dump:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift --version
+      - run: swift format --in-place --recursive --parallel ios
+      - run: swift format lint --strict --recursive --parallel ios
+      - name: Print patch (base64 of gzip)
+        run: |
+          git diff --stat
+          echo "=====PATCH-BEGIN====="
+          git diff | gzip -9 | base64
+          echo "=====PATCH-END====="

@@ -9,16 +9,22 @@ final class InvariantTests: XCTestCase {
 
     // MARK: - FLog2
 
+    /// The datasheet's six-digit constants leave the linear piece 3.5e-8 above the log piece at
+    /// cut1. Codes in that sliver decode through the log piece, so x just below cut1 comes back
+    /// about 4e-9 off. Far below one 16-bit step (1.5e-5), but it bounds what "exact" can mean.
+    private let seamStep = FLog2.e * FLog2.cut1 + FLog2.f - FLog2.encode(FLog2.cut1)
+
     /// INV-FLOG2-1: decode(encode(x)) == x for any scene-linear x the camera can see.
     func testFLog2RoundTripsEverywhere() {
         var rng = SplitMix64(seed: 1)
         let edges = [0, FLog2.cut1, FLog2.cut1.nextDown, 0.18, 0.90, 16]
         for x in edges + (0..<cases).map({ _ in Double.random(in: 0...16, using: &rng) }) {
-            XCTAssertEqual(FLog2.decode(FLog2.encode(x)), x, accuracy: 1e-9, "x=\(x)")
+            XCTAssertEqual(FLog2.decode(FLog2.encode(x)), x, accuracy: 1e-8, "x=\(x)")
         }
     }
 
     /// INV-FLOG2-2: brighter in, brighter out. A dip would reverse a gradient in the LUT.
+    /// Each piece is strictly increasing; across cut1 the only drop is `seamStep`.
     func testFLog2IsStrictlyIncreasing() {
         var rng = SplitMix64(seed: 2)
         for _ in 0..<cases {
@@ -26,8 +32,13 @@ final class InvariantTests: XCTestCase {
             let b = Double.random(in: 0...16, using: &rng)
             guard a != b else { continue }
             let (lo, hi) = (min(a, b), max(a, b))
-            XCTAssertLessThan(FLog2.encode(lo), FLog2.encode(hi), "lo=\(lo) hi=\(hi)")
+            if (lo < FLog2.cut1) == (hi < FLog2.cut1) {
+                XCTAssertLessThan(FLog2.encode(lo), FLog2.encode(hi), "lo=\(lo) hi=\(hi)")
+            } else {
+                XCTAssertLessThanOrEqual(FLog2.encode(lo), FLog2.encode(hi) + seamStep, "lo=\(lo) hi=\(hi)")
+            }
         }
+        XCTAssertLessThan(seamStep, 1e-7)
     }
 
     /// INV-FLOG2-3: the linear and log pieces meet without a step, and cut2 is where cut1 lands.

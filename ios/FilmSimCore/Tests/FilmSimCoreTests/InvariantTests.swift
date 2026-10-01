@@ -2,8 +2,8 @@ import XCTest
 @testable import FilmSimCore
 
 /// Property tests: each rule must hold for every input, so each test throws thousands of
-/// random inputs at it instead of a few hand-picked ones. The generator is seeded, so a
-/// failure names its seed and reproduces exactly.
+/// random inputs at it instead of a few hand-picked ones. Each test's seed is fixed in the
+/// source, so a failure reproduces exactly, and its message names the failing input.
 final class InvariantTests: XCTestCase {
     private let cases = 5_000
 

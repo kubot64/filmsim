@@ -32,12 +32,13 @@ public struct FocusSettling: Sendable {
         return abs(position - latest) >= Self.creepStep
     }
 
-    /// When `settleDelay` has passed. True when the lens travelled since it last rested.
+    /// When `settleDelay` has passed. True when the lens travelled since it last rested; only then
+    /// does the lens rest at its new place. Otherwise the travel keeps counting from the old one,
+    /// so a creep that takes several waits to cover `minimumTravel` still counts.
     public mutating func lensStopped() -> Bool {
-        defer {
-            restingPosition = latestPosition
-            travelled = false
-        }
-        return travelled
+        guard travelled else { return false }
+        restingPosition = latestPosition
+        travelled = false
+        return true
     }
 }

@@ -32,6 +32,26 @@ final class FocusSettlingTests: XCTestCase {
         XCTAssertTrue(s.lensStopped())
     }
 
+    /// What the screen does with a creep alone: no step restarts the wait, so a wait ends every
+    /// 0.1 s, about every 3 reports of 1/255. The travel must carry over those waits.
+    func testCreepAcrossSeveralWaitsCounts() {
+        var s = FocusSettling()
+        _ = s.lensMoved(to: 0.5)
+        _ = s.lensStopped()
+        var settled: [Bool] = []
+        var p: Float = 0.5
+        for _ in 0..<3 {
+            for _ in 0..<3 {
+                p += 1 / 255
+                XCTAssertFalse(s.lensMoved(to: p))
+            }
+            settled.append(s.lensStopped())
+        }
+        // 3/255 is short of minimumTravel; 6/255 (0.024) passes it in the second wait.
+        XCTAssertEqual(settled, [false, true, false])
+        XCTAssertFalse(s.lensStopped())
+    }
+
     /// Going out and back to the same place is still a refocus.
     func testThereAndBackCounts() {
         var s = FocusSettling()

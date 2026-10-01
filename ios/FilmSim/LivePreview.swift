@@ -242,11 +242,15 @@ struct CameraPreview: UIViewRepresentable {
         func flashShutter() {
             shutterVeil.frame = bounds
             bringSubviewToFront(shutterVeil)
-            shutterVeil.layer.removeAllAnimations()
-            shutterVeil.alpha = 0.92
-            UIView.animate(withDuration: 0.2, delay: 0.04, options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]) {
-                self.shutterVeil.alpha = 0
-            }
+            // A layer animation, not UIView.animate: called from SwiftUI's view update, a UIView
+            // alpha animation showed nothing on the iPhone. The model opacity stays 0, so only the
+            // animation shows the veil.
+            let fade = CAKeyframeAnimation(keyPath: "opacity")
+            fade.values = [0.92, 0.92, 0]
+            fade.keyTimes = [0, 0.15, 1]
+            fade.timingFunctions = [CAMediaTimingFunction(name: .linear), CAMediaTimingFunction(name: .easeOut)]
+            fade.duration = 0.26
+            shutterVeil.layer.add(fade, forKey: "shutter")
         }
 
         /// Volume buttons take a photo on iOS 17.2 and later. Primary is volume down, secondary is

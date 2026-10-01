@@ -17,7 +17,7 @@ final class CameraController: NSObject, ObservableObject {
     private var holdingObservation: NSKeyValueObservation?
     private var lensObservation: NSKeyValueObservation?
     private var focusSettling = FocusSettling()
-    /// Waits `FocusSettling.settleDelay` after the latest lens move; a newer move cancels it.
+    /// Waits `FocusSettling.settleDelay` after the latest bigger lens step; a newer one cancels it.
     private var settleWait: Task<Void, Never>?
     /// Degrees the controls turn so they read upright however the phone is held (#43).
     /// Follows gravity, so it works with the system rotation lock on too.
@@ -106,14 +106,17 @@ final class CameraController: NSObject, ObservableObject {
         Task.detached { [session] in session.startRunning() }
     }
 
+    /// A bigger step restarts the wait; creeping in only starts one if none is running.
     private func lensMoved(to position: Float) {
-        focusSettling.lensMoved(to: position)
+        let moving = focusSettling.lensMoved(to: position)
+        guard moving || settleWait == nil else { return }
         settleWait?.cancel()
         settleWait = Task { [weak self] in
             // A cancelled sleep throws: a newer move is waiting instead.
             do { try await Task.sleep(for: FocusSettling.settleDelay) } catch { return }
-            guard let self, self.focusSettling.lensStopped(at: position) else { return }
-            self.focusSettled += 1
+            guard let self else { return }
+            self.settleWait = nil
+            if self.focusSettling.lensStopped() { self.focusSettled += 1 }
         }
     }
 

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 final class LUTInputDetectionTests: XCTestCase {
@@ -24,22 +25,24 @@ final class LUTInputDetectionTests: XCTestCase {
     }
 
     func testTitleOrCommentCounts() {
-        XCTAssertEqual(detect("warm.cube", "TITLE \"Warm look for S-Log3 / S-Gamut3.Cine\"\n"), .supported(.sLog3SGamut3Cine))
+        XCTAssertEqual(
+            detect("warm.cube", "TITLE \"Warm look for S-Log3 / S-Gamut3.Cine\"\n"), .supported(.sLog3SGamut3Cine))
         XCTAssertEqual(detect("warm.cube", "# Input: F-Log2\n"), .supported(.fLog2))
     }
 
     func testUnclearOrUnsupportedIsRefused() {
-        XCTAssertTrue(isRefused(detect("MyLook_SLog3.cube")))            // gamut unknown
-        XCTAssertTrue(isRefused(detect("SLog3_to_FLog2.cube")))           // both
-        XCTAssertTrue(isRefused(detect("FLog2C_to_ETERNA.cube")))         // F-Log2 C, different gamut
+        XCTAssertTrue(isRefused(detect("MyLook_SLog3.cube")))  // gamut unknown
+        XCTAssertTrue(isRefused(detect("SLog3_to_FLog2.cube")))  // both
+        XCTAssertTrue(isRefused(detect("FLog2C_to_ETERNA.cube")))  // F-Log2 C, different gamut
         XCTAssertTrue(isRefused(detect("F-Log2 C Look.cube")))
-        XCTAssertTrue(isRefused(detect("FLog_to_WDR_BT.709.cube")))       // first F-Log
+        XCTAssertTrue(isRefused(detect("FLog_to_WDR_BT.709.cube")))  // first F-Log
         XCTAssertTrue(isRefused(detect("VLog_to_V709.cube")))
-        XCTAssertTrue(isRefused(detect("Portra400.cube")))                // says nothing
+        XCTAssertTrue(isRefused(detect("Portra400.cube")))  // says nothing
     }
 
     /// Only the header is read: numbers in the table must not be mistaken for anything.
     func testTableIsNotScanned() {
-        XCTAssertEqual(LUTInputDetection.headerLines(of: "TITLE \"x\"\n# c\nLUT_3D_SIZE 2\n0.1 0.2 0.3\n"), ["TITLE \"x\"", "# c"])
+        XCTAssertEqual(
+            LUTInputDetection.headerLines(of: "TITLE \"x\"\n# c\nLUT_3D_SIZE 2\n0.1 0.2 0.3\n"), ["TITLE \"x\"", "# c"])
     }
 }

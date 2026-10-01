@@ -78,7 +78,7 @@ final class Developer {
     /// the EOTF used for ΔE.
     private let context = CIContext(options: [
         .workingColorSpace: CGColorSpace(name: CGColorSpace.linearDisplayP3)!,
-        .outputColorSpace: CGColorSpace(name: CGColorSpace.linearDisplayP3)!,
+        .outputColorSpace: CGColorSpace(name: CGColorSpace.linearDisplayP3)!
     ])
     private var kernels: Pipeline.Kernels?
     private var luts: [FilmSimulation: CubeLUT] = [:]
@@ -117,7 +117,9 @@ final class Developer {
     }
 
     /// Both screens pass the stored last-used recipe (`Recipe.storageKey`, #8).
-    func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe, focalLength: FocalLength) async -> DisplayImageResult {
+    func displayCGImage(rawData: Data, scaleFactor: Float = 1, recipe: Recipe, focalLength: FocalLength) async
+        -> DisplayImageResult
+    {
         guard let pipeline = await pipeline(for: recipe) else {
             return DisplayImageResult(image: nil, reason: setupFailure(for: recipe))
         }
@@ -129,7 +131,9 @@ final class Developer {
         return DisplayImageResult(image: image, reason: nil)
     }
 
-    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async -> DevelopSaveOutcome {
+    func developAndSave(rawData: Data, saveDNG: Bool, recipe: Recipe, focalLength: FocalLength) async
+        -> DevelopSaveOutcome
+    {
         guard await authorizeAdd() else { return DevelopSaveOutcome(result: .permissionDenied) }
         var heic: Data?
         var thumbnail: Data?
@@ -211,16 +215,18 @@ final class Developer {
         if missingLUTs.contains(simulation) || unreadableLUTs[simulation] != nil {
             return nil
         }
-        let task = lutLoads[simulation] ?? Task.detached(priority: .userInitiated) { () -> LUTLoadOutcome in
-            guard let url = Bundle.main.url(forResource: simulation.lutFileName, withExtension: "cube") else {
-                return .missing
+        let task =
+            lutLoads[simulation]
+            ?? Task.detached(priority: .userInitiated) { () -> LUTLoadOutcome in
+                guard let url = Bundle.main.url(forResource: simulation.lutFileName, withExtension: "cube") else {
+                    return .missing
+                }
+                do {
+                    return .loaded(try CubeLUT(contentsOf: url))
+                } catch {
+                    return .unreadable(error.localizedDescription)
+                }
             }
-            do {
-                return .loaded(try CubeLUT(contentsOf: url))
-            } catch {
-                return .unreadable(error.localizedDescription)
-            }
-        }
         lutLoads[simulation] = task
         let outcome = await task.value
         lutLoads[simulation] = nil
@@ -269,7 +275,10 @@ private final class RenderBox: @unchecked Sendable {
     let rawData: Data
     let scaleFactor: Float
 
-    init(pipeline: Pipeline, context: CIContext, recipe: Recipe, focalLength: FocalLength, rawData: Data, scaleFactor: Float) {
+    init(
+        pipeline: Pipeline, context: CIContext, recipe: Recipe, focalLength: FocalLength, rawData: Data,
+        scaleFactor: Float
+    ) {
         self.pipeline = pipeline
         self.context = context
         self.recipe = recipe
@@ -286,13 +295,17 @@ private final class RenderBox: @unchecked Sendable {
     func heic() -> Data? {
         guard let cg = cgImage() else { return nil }
         let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(data as CFMutableData, UTType.heic.identifier as CFString, 1, nil) else {
+        guard
+            let dest = CGImageDestinationCreateWithData(
+                data as CFMutableData, UTType.heic.identifier as CFString, 1, nil)
+        else {
             return nil
         }
-        let props = [
-            kCGImageDestinationLossyCompressionQuality as String: 0.95,
-            kCGImagePropertyTIFFDictionary as String: [kCGImagePropertyTIFFSoftware as String: AppVersion.software],
-        ] as CFDictionary
+        let props =
+            [
+                kCGImageDestinationLossyCompressionQuality as String: 0.95,
+                kCGImagePropertyTIFFDictionary as String: [kCGImagePropertyTIFFSoftware as String: AppVersion.software]
+            ] as CFDictionary
         CGImageDestinationAddImage(dest, cg, props)
         guard CGImageDestinationFinalize(dest) else { return nil }
         return data as Data
@@ -301,13 +314,19 @@ private final class RenderBox: @unchecked Sendable {
     /// About 240px on the long side, enough for the 44pt thumbnail at 3x with room to spare.
     static func thumbnailJPEG(fromHEIC heic: Data) -> Data? {
         guard let source = CGImageSourceCreateWithData(heic as CFData, nil),
-              let thumb = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                  kCGImageSourceCreateThumbnailFromImageAlways: true,
-                  kCGImageSourceCreateThumbnailWithTransform: true,
-                  kCGImageSourceThumbnailMaxPixelSize: 240,
-              ] as CFDictionary) else { return nil }
+            let thumb = CGImageSourceCreateThumbnailAtIndex(
+                source, 0,
+                [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 240
+                ] as CFDictionary)
+        else { return nil }
         let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(data as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil) else {
+        guard
+            let dest = CGImageDestinationCreateWithData(
+                data as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+        else {
             return nil
         }
         CGImageDestinationAddImage(dest, thumb, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
@@ -328,8 +347,9 @@ private final class RenderBox: @unchecked Sendable {
     private static func displayCGImage(_ image: CIImage, context: CIContext) -> CGImage? {
         let rect = image.extent.integral
         guard rect.width > 1, rect.height > 1,
-              let rendered = context.createCGImage(image, from: rect, format: .RGBA8, colorSpace: linearP3),
-              let tagged = retag(rendered, as: sRGB) else { return nil }
+            let rendered = context.createCGImage(image, from: rect, format: .RGBA8, colorSpace: linearP3),
+            let tagged = retag(rendered, as: sRGB)
+        else { return nil }
         return tagged
     }
 

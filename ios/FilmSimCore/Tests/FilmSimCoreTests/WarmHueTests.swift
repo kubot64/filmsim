@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 final class WarmHueTests: XCTestCase {
@@ -9,7 +10,7 @@ final class WarmHueTests: XCTestCase {
             ([0.9, 0.55, 0.2], [0.9390028460, 0.5337492135, 0.2461296049]),
             ([0.7, 0.7, 0.2], [0.7288390912, 0.6909850233, 0.2043811709]),
             ([0.2, 0.4, 0.9], [0.2, 0.4, 0.9]),
-            ([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+            ([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         ]
         for (rgb, expected) in cases {
             let out = WarmHue.evaluate(rgb)

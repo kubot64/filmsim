@@ -44,19 +44,21 @@ public enum PreviewGeometry {
     }
 }
 
-public extension CIImage {
+extension CIImage {
     /// A sensor-native camera frame as the live preview shows it: the focal-length crop,
     /// turned 90° clockwise, aspect-filled and centred in `size`, and cut to `size` at the origin
     /// (a fractional scale otherwise leaves the extent a pixel larger).
     /// Must agree with `PreviewGeometry.devicePoint(fromView:crop:)`, which maps taps back.
-    func livePreviewFrame(focalLength: FocalLength, filling size: CGSize) -> CIImage {
+    public func livePreviewFrame(focalLength: FocalLength, filling size: CGSize) -> CIImage {
         var image = croppedThreeByTwo(focalLength: focalLength).oriented(.right)
         image = image.transformed(by: CGAffineTransform(translationX: -image.extent.minX, y: -image.extent.minY))
         let scale = max(size.width / image.extent.width, size.height / image.extent.height)
         image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        return image.transformed(by: CGAffineTransform(
-            translationX: (size.width - image.extent.width) / 2,
-            y: (size.height - image.extent.height) / 2
-        )).cropped(to: CGRect(origin: .zero, size: size))
+        return image.transformed(
+            by: CGAffineTransform(
+                translationX: (size.width - image.extent.width) / 2,
+                y: (size.height - image.extent.height) / 2
+            )
+        ).cropped(to: CGRect(origin: .zero, size: size))
     }
 }

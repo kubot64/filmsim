@@ -46,7 +46,7 @@ public enum WarmHue {
                 image,
                 NSNumber(value: Float(degrees)),
                 NSNumber(value: Float(center)),
-                NSNumber(value: Float(width)),
+                NSNumber(value: Float(width))
             ]
         ) ?? image
     }

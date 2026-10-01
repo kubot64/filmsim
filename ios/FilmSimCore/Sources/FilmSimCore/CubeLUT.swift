@@ -57,7 +57,9 @@ public struct CubeLUT: Sendable {
             let parts = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
             guard let keyword = parts.first else { continue }
             switch keyword {
-            case "TITLE": title = parts.dropFirst().joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            case "TITLE":
+                title = parts.dropFirst().joined(separator: " ").trimmingCharacters(
+                    in: CharacterSet(charactersIn: "\""))
             case "LUT_3D_SIZE":
                 guard size == nil, parts.count == 2, let n = Int(parts[1]), Self.sizeRange.contains(n) else {
                     throw ParseError.badSize(String(line.prefix(40)))
@@ -78,18 +80,24 @@ public struct CubeLUT: Sendable {
                     throw ParseError.unsupportedDomain
                 }
             default:
-                guard parts.count == 3, let r = Float(parts[0]), let g = Float(parts[1]), let b = Float(parts[2]) else { continue }
+                guard parts.count == 3, let r = Float(parts[0]), let g = Float(parts[1]), let b = Float(parts[2]) else {
+                    continue
+                }
                 for v in [r, g, b] where !v.isFinite || abs(v) > Self.valueLimit {
                     throw ParseError.badValue(String(line.prefix(40)))
                 }
                 let limit = size.map { $0 * $0 * $0 } ?? maxRows
-                guard floats.count / 4 < limit else { throw ParseError.badRowCount(expected: limit, got: floats.count / 4 + 1) }
+                guard floats.count / 4 < limit else {
+                    throw ParseError.badRowCount(expected: limit, got: floats.count / 4 + 1)
+                }
                 floats.append(contentsOf: [r, g, b, 1.0])
             }
         }
         guard let n = size else { throw ParseError.missingSize }
         let expected = n * n * n
-        guard floats.count / 4 == expected else { throw ParseError.badRowCount(expected: expected, got: floats.count / 4) }
+        guard floats.count / 4 == expected else {
+            throw ParseError.badRowCount(expected: expected, got: floats.count / 4)
+        }
         self.title = String(title.prefix(200))
         self.size = n
         self.rgbaData = floats.withUnsafeBufferPointer { Data(buffer: $0) }

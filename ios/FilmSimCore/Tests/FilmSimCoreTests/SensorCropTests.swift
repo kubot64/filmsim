@@ -1,6 +1,7 @@
 import CoreImage
 import ImageIO
 import XCTest
+
 @testable import FilmSimCore
 
 final class SensorCropTests: XCTestCase {
@@ -53,7 +54,9 @@ final class SensorCropTests: XCTestCase {
         let native = CIImage(color: .black).cropped(to: CGRect(x: 0, y: 0, width: 4032, height: 3024))
         let crop = native.croppedThreeByTwo(focalLength: .mm28).extent
         for orientation: CGImagePropertyOrientation in [.up, .down] {
-            XCTAssertEqual(native.croppedThreeByTwo(focalLength: .mm28, shot: orientation).extent.size, crop.size, "\(orientation)")
+            XCTAssertEqual(
+                native.croppedThreeByTwo(focalLength: .mm28, shot: orientation).extent.size, crop.size, "\(orientation)"
+            )
         }
         for orientation: CGImagePropertyOrientation in [.left, .right] {
             let turned = native.croppedThreeByTwo(focalLength: .mm28, shot: orientation).extent.size

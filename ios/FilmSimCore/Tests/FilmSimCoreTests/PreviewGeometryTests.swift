@@ -1,6 +1,7 @@
 import CoreGraphics
 import CoreImage
 import XCTest
+
 @testable import FilmSimCore
 
 final class PreviewGeometryTests: XCTestCase {
@@ -56,7 +57,8 @@ final class PreviewGeometryTests: XCTestCase {
 
     func testCentreTapFocusesOnTheCentre() {
         let p = PreviewGeometry.focusViewPoint(
-            forTap: CGPoint(x: 200, y: 300), in: CGRect(x: 0, y: 0, width: 400, height: 600), frameSize: CGSize(width: 72, height: 72)
+            forTap: CGPoint(x: 200, y: 300), in: CGRect(x: 0, y: 0, width: 400, height: 600),
+            frameSize: CGSize(width: 72, height: 72)
         )
         assertPoint(p!, CGPoint(x: 0.5, y: 0.5))
     }
@@ -64,7 +66,8 @@ final class PreviewGeometryTests: XCTestCase {
     /// A tap in a corner moves in by half the frame, so the whole frame is on screen.
     func testCornerTapMovesInByHalfTheFrame() {
         let bounds = CGRect(x: 0, y: 0, width: 400, height: 600)
-        let p = PreviewGeometry.focusViewPoint(forTap: CGPoint(x: 2, y: 598), in: bounds, frameSize: CGSize(width: 72, height: 72))
+        let p = PreviewGeometry.focusViewPoint(
+            forTap: CGPoint(x: 2, y: 598), in: bounds, frameSize: CGSize(width: 72, height: 72))
         assertPoint(p!, CGPoint(x: 36.0 / 400, y: (600 - 36.0) / 600))
     }
 
@@ -72,7 +75,8 @@ final class PreviewGeometryTests: XCTestCase {
     func testEdgeTapStaysInsideTheViewWhenTheImageSticksOut() {
         let bounds = CGRect(x: 0, y: 0, width: 400, height: 900)
         let image = PreviewGeometry.imageRect(in: bounds)
-        let p = PreviewGeometry.focusViewPoint(forTap: CGPoint(x: 0, y: 450), in: bounds, frameSize: CGSize(width: 72, height: 72))!
+        let p = PreviewGeometry.focusViewPoint(
+            forTap: CGPoint(x: 0, y: 450), in: bounds, frameSize: CGSize(width: 72, height: 72))!
         XCTAssertEqual(image.minX + p.x * image.width, 36, accuracy: 1e-9)
     }
 
@@ -91,10 +95,12 @@ final class PreviewGeometryTests: XCTestCase {
             let crop = PreviewGeometry.crop(sensorAspect: sensor.width / sensor.height, focalLength: focal)
             for device in [CGPoint(x: 0.45, y: 0.4), CGPoint(x: 0.6, y: 0.62)] {
                 // CIImage is bottom-left origin; device points are top-left.
-                let mark = CIImage(color: .white).cropped(to: CGRect(
-                    x: device.x * sensor.width - 4, y: (1 - device.y) * sensor.height - 4, width: 8, height: 8
-                ))
-                let frame = mark.composited(over: CIImage(color: .black).cropped(to: CGRect(origin: .zero, size: sensor)))
+                let mark = CIImage(color: .white).cropped(
+                    to: CGRect(
+                        x: device.x * sensor.width - 4, y: (1 - device.y) * sensor.height - 4, width: 8, height: 8
+                    ))
+                let frame = mark.composited(
+                    over: CIImage(color: .black).cropped(to: CGRect(origin: .zero, size: sensor)))
                 let size = CGSize(width: 200, height: 300)
                 let drawn = frame.livePreviewFrame(focalLength: focal, filling: size)
                 XCTAssertEqual(drawn.extent.width, size.width, accuracy: 0.5, focal.displayName)
@@ -113,7 +119,9 @@ final class PreviewGeometryTests: XCTestCase {
     private func centroid(of image: CIImage, size: CGSize, context: CIContext) -> CGPoint? {
         let w = Int(size.width), h = Int(size.height)
         var pixels = [UInt8](repeating: 0, count: w * h * 4)
-        context.render(image, toBitmap: &pixels, rowBytes: w * 4, bounds: CGRect(x: 0, y: 0, width: w, height: h), format: .RGBA8, colorSpace: nil)
+        context.render(
+            image, toBitmap: &pixels, rowBytes: w * 4, bounds: CGRect(x: 0, y: 0, width: w, height: h), format: .RGBA8,
+            colorSpace: nil)
         var sx = 0.0, sy = 0.0, n = 0.0
         for row in 0..<h {
             for col in 0..<w where pixels[(row * w + col) * 4] > 127 {

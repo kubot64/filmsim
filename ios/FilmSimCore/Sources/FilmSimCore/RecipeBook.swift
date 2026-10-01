@@ -81,7 +81,9 @@ public struct RecipeBook: Codable, Equatable, Sendable {
 
     /// A plain recipe for an imported LUT, unless one was already made for it or already uses it.
     public mutating func addImportedLUT(named lutName: String, displayName: String) {
-        guard !recipes.contains(where: { $0.createdForLUT == lutName || $0.recipe.importedLUT == lutName }) else { return }
+        guard !recipes.contains(where: { $0.createdForLUT == lutName || $0.recipe.importedLUT == lutName }) else {
+            return
+        }
         recipes.append(SavedRecipe(name: displayName, recipe: Self.plain(lutName), createdForLUT: lutName))
     }
 
@@ -93,7 +95,9 @@ public struct RecipeBook: Codable, Equatable, Sendable {
 
     /// The LUT's display name changed: the recipe made for it follows, unless the user has
     /// named that recipe something else.
-    public mutating func renameImportedLUT(named lutName: String, from oldDisplayName: String, to newDisplayName: String) {
+    public mutating func renameImportedLUT(
+        named lutName: String, from oldDisplayName: String, to newDisplayName: String
+    ) {
         for i in recipes.indices where recipes[i].createdForLUT == lutName && recipes[i].name == oldDisplayName {
             recipes[i].name = newDisplayName
         }

@@ -28,7 +28,7 @@ public struct ColorMatrixVectors {
             "inputGVector": gVector,
             "inputBVector": bVector,
             "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
-            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 0)
         ]
     }
 

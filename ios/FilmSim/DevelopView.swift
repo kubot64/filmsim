@@ -38,7 +38,8 @@ struct DevelopView: View {
                 if let preview {
                     Image(uiImage: preview).resizable().scaledToFit()
                 } else if picksRaw {
-                    ContentUnavailableView("RAW を選ぶ", systemImage: "photo", description: Text("左上の「RAW を選ぶ」から、写真ライブラリの DNG を選ぶ"))
+                    ContentUnavailableView(
+                        "RAW を選ぶ", systemImage: "photo", description: Text("左上の「RAW を選ぶ」から、写真ライブラリの DNG を選ぶ"))
                 } else if message == nil {
                     // Opened with the RAW already loaded; the first develop is on its way.
                     ProgressView("現像しています…").frame(maxHeight: .infinity)
@@ -48,21 +49,21 @@ struct DevelopView: View {
                 }
                 Form {
                     Section {
-                    LookPicker(title: "ルック", recipe: recipe)
-                    Picker("画角", selection: $focalLength) {
-                        ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
-                    }
-                    slider("明るさ", value: recipe.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
-                    slider("WB R", value: recipe.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
-                    slider("WB B", value: recipe.wbShiftB, range: -9...9, step: 1, format: "%+.0f")
-                    slider("ハイライト", value: recipe.highlight, range: -2...4, step: 1, format: "%+.0f")
-                    slider("シャドウ", value: recipe.shadow, range: -2...4, step: 1, format: "%+.0f")
-                    Picker("グレイン", selection: recipe.grainStrength) {
-                        ForEach(GrainStrength.allCases, id: \.self) { Text($0.label) }
-                    }
-                    Picker("グレインの大きさ", selection: recipe.grainSize) {
-                        ForEach(GrainSize.allCases, id: \.self) { Text($0.label) }
-                    }
+                        LookPicker(title: "ルック", recipe: recipe)
+                        Picker("画角", selection: $focalLength) {
+                            ForEach(FocalLength.allCases, id: \.self) { Text($0.displayName) }
+                        }
+                        slider("明るさ", value: recipe.exposureEV, range: -2...2, step: 0.25, format: "%+.2f")
+                        slider("WB R", value: recipe.wbShiftR, range: -9...9, step: 1, format: "%+.0f")
+                        slider("WB B", value: recipe.wbShiftB, range: -9...9, step: 1, format: "%+.0f")
+                        slider("ハイライト", value: recipe.highlight, range: -2...4, step: 1, format: "%+.0f")
+                        slider("シャドウ", value: recipe.shadow, range: -2...4, step: 1, format: "%+.0f")
+                        Picker("グレイン", selection: recipe.grainStrength) {
+                            ForEach(GrainStrength.allCases, id: \.self) { Text($0.label) }
+                        }
+                        Picker("グレインの大きさ", selection: recipe.grainSize) {
+                            ForEach(GrainSize.allCases, id: \.self) { Text($0.label) }
+                        }
                     } footer: {
                         Text("「写真を保存」で、この設定で現像した写真を写真ライブラリに新しく足す。元の写真と RAW はそのまま残る。ここで変えた調整は、選んでいるレシピに入り、カメラの撮影にも効く。")
                     }
@@ -166,17 +167,18 @@ struct DevelopView: View {
             rawData: rawData, saveDNG: false, recipe: recipe.recipe, focalLength: focal
         )
         if let source, let heic = result.heicAssetID {
-            ShotStore.shared.append(ShotRecord(
-                date: Date(), heicAssetID: heic, dngAssetID: source.dngAssetID,
-                recipeName: recipe.name, recipe: recipe.recipe, focalLength: focal
-            ), thumbnailJPEG: result.thumbnailJPEG)
+            ShotStore.shared.append(
+                ShotRecord(
+                    date: Date(), heicAssetID: heic, dngAssetID: source.dngAssetID,
+                    recipeName: recipe.name, recipe: recipe.recipe, focalLength: focal
+                ), thumbnailJPEG: result.thumbnailJPEG)
         }
         message = result.message
     }
 }
 
-private extension GrainStrength {
-    var label: String {
+extension GrainStrength {
+    fileprivate var label: String {
         switch self {
         case .off: return "なし"
         case .weak: return "弱"
@@ -185,8 +187,8 @@ private extension GrainStrength {
     }
 }
 
-private extension GrainSize {
-    var label: String {
+extension GrainSize {
+    fileprivate var label: String {
         switch self {
         case .small: return "小"
         case .large: return "大"

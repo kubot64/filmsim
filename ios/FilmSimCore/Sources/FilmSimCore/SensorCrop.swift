@@ -29,18 +29,18 @@ public enum SensorCrop {
     }
 }
 
-public extension CIImage {
+extension CIImage {
     /// Same framing as `SensorCrop.rectThreeByTwo`, snapped to whole pixels.
     /// `self` must be the sensor-native buffer (wide side along x). A portrait
     /// buffer would apply 24/35 to the short side and land near 47mm instead of 35mm.
-    func croppedThreeByTwo(focalLength: FocalLength) -> CIImage {
+    public func croppedThreeByTwo(focalLength: FocalLength) -> CIImage {
         let pixels = SensorCrop.rectThreeByTwo(in: extent, focalLength: focalLength).integral.intersection(extent)
         guard pixels.width >= 2, pixels.height >= 2 else { return self }
         return cropped(to: pixels)
     }
 
     /// Crop in sensor orientation, then apply the shot orientation.
-    func croppedThreeByTwo(focalLength: FocalLength, shot orientation: CGImagePropertyOrientation) -> CIImage {
+    public func croppedThreeByTwo(focalLength: FocalLength, shot orientation: CGImagePropertyOrientation) -> CIImage {
         croppedThreeByTwo(focalLength: focalLength).oriented(orientation)
     }
 }

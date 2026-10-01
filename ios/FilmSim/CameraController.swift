@@ -90,8 +90,11 @@ final class CameraController: NSObject, ObservableObject {
             if let aspect = info.sensorAspect { sensorAspect = aspect }
             let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
             rotationCoordinator = coordinator
-            holdingObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]) { [weak self] c, _ in
-                let rotation = HoldingOrientation.controlRotation(captureAngle: Double(c.videoRotationAngleForHorizonLevelCapture))
+            holdingObservation = coordinator.observe(
+                \.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]
+            ) { [weak self] c, _ in
+                let rotation = HoldingOrientation.controlRotation(
+                    captureAngle: Double(c.videoRotationAngleForHorizonLevelCapture))
                 Task { @MainActor in self?.controlRotation = rotation }
             }
             lensObservation = device.observe(\.lensPosition, options: [.initial, .new]) { [weak self] d, _ in
@@ -251,13 +254,15 @@ final class CameraController: NSObject, ObservableObject {
         guard let rawType = output.bayerRAWFormats.first else {
             fail("Bayer RAW のピクセルフォーマットがありません"); return
         }
-        let settings = AVCapturePhotoSettings(rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
+        let settings = AVCapturePhotoSettings(
+            rawPixelFormatType: rawType, processedFormat: [AVVideoCodecKey: AVVideoCodecType.hevc])
         settings.maxPhotoDimensions = output.maxPhotoDimensions
         // Record how the phone is held; the DNG keeps the sensor-native pixels and an orientation tag,
         // and the develop step crops before turning (#44).
         if let angle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture,
-           let connection = output.connection(with: .video),
-           connection.isVideoRotationAngleSupported(angle) {
+            let connection = output.connection(with: .video),
+            connection.isVideoRotationAngleSupported(angle)
+        {
             connection.videoRotationAngle = angle
         }
         // photoQualityPrioritization must stay at its default: setting it on RAW settings throws.
@@ -287,7 +292,9 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
         }
     }
 
-    nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+    nonisolated func photoOutput(
+        _ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?
+    ) {
         let id = photo.resolvedSettings.uniqueID
         let isRaw = photo.isRawPhoto
         let data = photo.fileDataRepresentation()
@@ -296,7 +303,10 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
         }
     }
 
-    nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
+    nonisolated func photoOutput(
+        _ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?
+    ) {
         let id = resolvedSettings.uniqueID
         let rawDims = resolvedSettings.rawPhotoDimensions
         Task { @MainActor in
@@ -313,10 +323,11 @@ extension CameraController: AVCapturePhotoCaptureDelegate {
                 focalLength: pending.focalLength
             )
             if saved.savedAnything {
-                ShotStore.shared.append(ShotRecord(
-                    date: Date(), heicAssetID: saved.heicAssetID, dngAssetID: saved.dngAssetID,
-                    recipeName: pending.recipe.name, recipe: pending.recipe.recipe, focalLength: pending.focalLength
-                ), thumbnailJPEG: saved.thumbnailJPEG)
+                ShotStore.shared.append(
+                    ShotRecord(
+                        date: Date(), heicAssetID: saved.heicAssetID, dngAssetID: saved.dngAssetID,
+                        recipeName: pending.recipe.name, recipe: pending.recipe.recipe, focalLength: pending.focalLength
+                    ), thumbnailJPEG: saved.thumbnailJPEG)
             }
             self.status = "RAW \(rawDims.width)x\(rawDims.height)、\(raw.count / 1_000_000)MB。\(saved.message)"
             if !saved.result.isSuccess { self.notice = Notice(text: saved.message) }

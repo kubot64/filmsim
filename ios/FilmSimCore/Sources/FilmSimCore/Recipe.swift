@@ -54,10 +54,10 @@ public struct Recipe: Codable, Equatable, Sendable {
     /// built-in looks. When that LUT has been deleted, rendering falls back to `filmSimulation`.
     public var importedLUT: String?
     public var exposureEV: Double = 0
-    public var wbShiftR: Double = 0   // -9...+9
-    public var wbShiftB: Double = 0   // -9...+9
+    public var wbShiftR: Double = 0  // -9...+9
+    public var wbShiftB: Double = 0  // -9...+9
     public var highlight: Double = 0  // -2...+4
-    public var shadow: Double = 0     // -2...+4
+    public var shadow: Double = 0  // -2...+4
     public var grainStrength: GrainStrength = .off
     public var grainSize: GrainSize = .small
 

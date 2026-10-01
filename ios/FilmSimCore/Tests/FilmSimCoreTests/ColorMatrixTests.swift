@@ -1,6 +1,7 @@
 import CoreImage
 import XCTest
 import simd
+
 @testable import FilmSimCore
 
 final class ColorMatrixTests: XCTestCase {
@@ -44,9 +45,11 @@ final class ColorMatrixTests: XCTestCase {
     private func render(red: Double, green: Double, blue: Double, vectors: ColorMatrixVectors) -> SIMD3<Double> {
         let space = CGColorSpace(name: CGColorSpace.linearSRGB)!
         let context = CIContext(options: [.workingColorSpace: space])
-        guard let color = CIColor(
-            red: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue), alpha: 1, colorSpace: space
-        ) else {
+        guard
+            let color = CIColor(
+                red: CGFloat(red), green: CGFloat(green), blue: CGFloat(blue), alpha: 1, colorSpace: space
+            )
+        else {
             XCTFail("CIColor init failed")
             return .zero
         }

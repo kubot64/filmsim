@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import FilmSimCore
 
 final class HoldingOrientationTests: XCTestCase {

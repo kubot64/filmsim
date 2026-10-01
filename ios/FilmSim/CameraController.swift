@@ -15,6 +15,7 @@ final class CameraController: NSObject, ObservableObject {
     /// How the phone is held, for the shot's orientation (#44). The interface stays portrait.
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var holdingObservation: NSKeyValueObservation?
+    private var focusObservation: NSKeyValueObservation?
     /// Degrees the controls turn so they read upright however the phone is held (#43).
     /// Follows gravity, so it works with the system rotation lock on too.
     @Published private(set) var controlRotation = 0.0
@@ -27,6 +28,9 @@ final class CameraController: NSObject, ObservableObject {
     @Published private(set) var notice: Notice?
     /// Incremented when the exposure starts, so the preview darkens with the shutter sound.
     @Published private(set) var shutterFlash = 0
+    /// Incremented each time the lens stops moving, so the focus frame shows green for a moment.
+    /// AVFoundation only says whether focus is moving; it never says a focus attempt failed.
+    @Published private(set) var focusSettled = 0
     /// Shots taken and not yet saved or failed. The thumbnail spins while this is above zero.
     private var developingCount = 0
     /// True while at least one shot is still becoming a saved photo.
@@ -86,6 +90,10 @@ final class CameraController: NSObject, ObservableObject {
             holdingObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.initial, .new]) { [weak self] c, _ in
                 let rotation = HoldingOrientation.controlRotation(captureAngle: Double(c.videoRotationAngleForHorizonLevelCapture))
                 Task { @MainActor in self?.controlRotation = rotation }
+            }
+            focusObservation = device.observe(\.isAdjustingFocus, options: [.old, .new]) { [weak self] _, change in
+                guard change.oldValue == true, change.newValue == false else { return }
+                Task { @MainActor in self?.focusSettled += 1 }
             }
             addPreviewOutput()
             setFocalLength(FocalLength.stored())

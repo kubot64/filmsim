@@ -5,6 +5,10 @@ the same inputs through its CPU functions and the Metal kernels, so the Swift co
 to this code over the whole input range instead of a few hand-copied points (docs/adr/0009).
 Rewrite it with `make fixtures`; tests/test_fixtures.py fails while it is stale.
 
+Inputs are draws from the Generator or literals. Do not pass those draws through powers or
+trigonometry: libm differs by a ulp across machines, and `make fixtures` would rewrite this
+file even though the transforms did not change.
+
 Each transform is a list of cases {"in": [...], "params": [...], "out": [...]}. "params" is
 only present when the transform takes parameters (tone curve: highlight, shadow).
 """
@@ -19,7 +23,7 @@ import numpy as np
 from .flog2 import FLOG2
 from .gamut import BT709, F_GAMUT, P3_D65, apply_matrix, conversion_matrix
 from .grain import grain_weight
-from .hue import from_ycbcr, x_series_warm_hue
+from .hue import x_series_warm_hue
 from .tone import tone_curve, x_series_shoulder
 
 PATH = Path(__file__).parents[1] / "tests/fixtures/transforms.json"
@@ -52,25 +56,18 @@ def _tone_params(rng: np.random.Generator, n: int) -> np.ndarray:
     return np.stack([parameter(), parameter()], axis=-1)
 
 
-def _hue_circle() -> np.ndarray:
-    """72 hues at two chroma levels around Y' 0.5, so the warm-hue window edges are covered."""
-    t = np.radians(np.arange(72) * 5.0)
-    rings = [from_ycbcr(np.full(72, 0.5), r * np.cos(t), r * np.sin(t)) for r in (0.1, 0.25)]
-    return np.clip(np.concatenate(rings), 0.0, 1.0)
-
-
 def build() -> dict:
     """All fixtures, from SEED. Same inputs every run; outputs follow the current code."""
     rng = np.random.default_rng(SEED)
     transforms: dict[str, list] = {}
 
-    # Scene-linear 0...16: half uniform, half log-uniform so the toe below cut1 is sampled too.
+    # Scene-linear 0...16, and the same count drawn uniformly below cut1 (the toe).
     x = np.concatenate(
         [
             [0.0, FLOG2.cut1, np.nextafter(FLOG2.cut1, 0), 0.0005, 0.01, 0.18, 0.5, 0.9, 1.0, 4.0],
             [16.0],
             rng.uniform(0, 16, 150),
-            10 ** rng.uniform(-5, np.log10(16), 150),
+            rng.uniform(0, FLOG2.cut1, 150),
         ]
     )
     transforms["flog2_encode"] = _cases(x, FLOG2.encode(x))
@@ -95,7 +92,21 @@ def build() -> dict:
     transforms["highlight_shoulder"] = _cases(rgb, x_series_shoulder(rgb))
 
     golden = np.array([[0.8, 0.2, 0.1], [0.9, 0.55, 0.2], [0.7, 0.7, 0.2], [0.2, 0.4, 0.9]])
-    rgb = np.concatenate([golden, [[0.5, 0.5, 0.5]], _hue_circle(), rng.uniform(0, 1, (200, 3))])
+    # Window edges (center ± width = 60° and 220°) and the hue wrap (0° and 355°), at Y' 0.5
+    # and two chroma levels. RGB literals: a hue circle goes through cos/sin.
+    marks = np.array(
+        [
+            [0.6363816805879734, 0.4500930351048614, 0.5927800000000001],  # 60°, chroma 0.1
+            [0.8409542014699335, 0.3752325877621535, 0.7319500000000001],  # 60°, chroma 0.25
+            [0.3987738072265638, 0.5444403200773168, 0.3578527931348424],  # 220°, chroma 0.1
+            [0.24693451806640948, 0.6111008001932918, 0.1446319828371061],  # 220°, chroma 0.25
+            [0.5, 0.48126757270693515, 0.68556],  # 0°, chroma 0.1
+            [0.5, 0.45316893176733786, 0.9639],  # 0°, chroma 0.25
+            [0.4862747136320988, 0.48541882711880746, 0.6848538881779043],  # 355°, chroma 0.1
+            [0.46568678408024694, 0.4635470677970187, 0.9621347204447608],  # 355°, chroma 0.25
+        ]
+    )
+    rgb = np.concatenate([golden, [[0.5, 0.5, 0.5]], marks, rng.uniform(0, 1, (200, 3))])
     transforms["warm_hue"] = _cases(rgb, x_series_warm_hue(rgb))
 
     golden_x = np.array([0.75, 0.25, 0.75, 0.25, 0.8])

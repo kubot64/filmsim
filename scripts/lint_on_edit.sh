@@ -22,7 +22,8 @@ case "$rel" in
         cd "$root/research" || exit 0
         uv run --quiet ruff check --fix --quiet "$file" >/dev/null 2>&1
         uv run --quiet ruff format --quiet "$file" >/dev/null 2>&1
-        out=$(uv run --quiet ruff check --quiet "$file" 2>&1) || {
+        # Same two checks as `make lint-py`, so a file the formatter could not rewrite still comes back.
+        out=$(uv run --quiet ruff check --quiet "$file" 2>&1 && uv run --quiet ruff format --check --quiet "$file" 2>&1) || {
             printf 'ruff found problems in %s:\n%s\n' "$rel" "$out" >&2
             exit 2
         }

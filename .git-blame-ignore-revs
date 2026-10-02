@@ -1,3 +1,0 @@
-# Formatting-only changes. `git config blame.ignoreRevsFile .git-blame-ignore-revs` to skip them in blame.
-# ruff and swift-format applied to the existing code
-f152bf7093abaa0caf94f044371361244265413c

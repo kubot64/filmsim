@@ -12,9 +12,7 @@ import os
 /// video, not RAW, so tone and highlights differ. Grain is left off. Frames arrive in the
 /// sensor-native orientation and get the same focal-length crop as the develop step
 /// (`croppedThreeByTwo`), then a 90° clockwise turn into the portrait view (`PreviewGeometry`).
-final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, MTKViewDelegate, @unchecked
-    Sendable
-{
+final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, MTKViewDelegate {
     let device: MTLDevice
     let sampleQueue = DispatchQueue(label: "PreviewRenderer.frames")
     private let commandQueue: MTLCommandQueue
@@ -124,6 +122,10 @@ final class PreviewRenderer: NSObject, AVCaptureVideoDataOutputSampleBufferDeleg
         commandBuffer.commit()
     }
 }
+
+// Kept out of the class declaration so the conformance list fits on one line: swift-format 6.1
+// and 6.3 wrap a too-long list differently, and `make lint` must agree on both.
+extension PreviewRenderer: @unchecked Sendable {}
 
 /// UIKit bridge for the live preview, the focus frame and the focus gestures.
 /// Volume buttons take a photo through `onHardwareShutter` (iOS 17.2+).

@@ -17,11 +17,12 @@ def test_committed_fixtures_match_the_code():
         for key in ("in", "params", "out"):
             if key not in cases[0]:
                 continue
-            # Inputs come from a seeded generator and match exactly. Outputs may differ by a
-            # libm ulp between machines (log10, pow, cos), far below the Swift tolerances.
-            atol = 0 if key == "in" else 1e-12
+            # Values may differ by a libm ulp between machines (macOS writes the file, CI runs
+            # Linux). Outputs go through log10, pow and cos, and so do some inputs (log-uniform
+            # samples, the hue circle). The Swift tests read the inputs from the file, so a
+            # rounding difference there cannot hide a mismatch; 1e-12 is far below their tolerances.
             np.testing.assert_allclose(
-                [c[key] for c in old], [c[key] for c in cases], rtol=0, atol=atol, err_msg=name
+                [c[key] for c in old], [c[key] for c in cases], rtol=0, atol=1e-12, err_msg=name
             )
 
 

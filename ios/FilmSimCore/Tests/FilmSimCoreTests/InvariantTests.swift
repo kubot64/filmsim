@@ -77,22 +77,83 @@ final class InvariantTests: XCTestCase {
 
     // MARK: - Recipe
 
+    private static let lutNames: [String?] = [nil, "", "My LUT", "夕方 の 色", "🎞️ film", #"quote " and \ slash"#]
+
+    /// Any recipe the develop screen can make, and values between its steps.
+    private func randomRecipe(_ rng: inout SplitMix64) -> Recipe {
+        var r = Recipe()
+        r.filmSimulation = FilmSimulation.allCases.randomElement(using: &rng)!
+        r.importedLUT = Self.lutNames.randomElement(using: &rng)!
+        r.exposureEV = Double.random(in: -3...3, using: &rng)
+        r.wbShiftR = Double.random(in: -9...9, using: &rng)
+        r.wbShiftB = Double.random(in: -9...9, using: &rng)
+        r.highlight = Double.random(in: -2...4, using: &rng)
+        r.shadow = Double.random(in: -2...4, using: &rng)
+        r.grainStrength = GrainStrength.allCases.randomElement(using: &rng)!
+        r.grainSize = GrainSize.allCases.randomElement(using: &rng)!
+        return r
+    }
+
     /// INV-RECIPE-1: any recipe reads back unchanged after it is saved.
     func testAnyRecipeSurvivesSaving() {
         var rng = SplitMix64(seed: 4)
-        let names: [String?] = [nil, "", "My LUT", "夕方 の 色", "🎞️ film", #"quote " and \ slash"#]
         for seed in 0..<cases {
-            var r = Recipe()
-            r.filmSimulation = FilmSimulation.allCases.randomElement(using: &rng)!
-            r.importedLUT = names.randomElement(using: &rng)!
-            r.exposureEV = Double.random(in: -3...3, using: &rng)
-            r.wbShiftR = Double.random(in: -9...9, using: &rng)
-            r.wbShiftB = Double.random(in: -9...9, using: &rng)
-            r.highlight = Double.random(in: -2...4, using: &rng)
-            r.shadow = Double.random(in: -2...4, using: &rng)
-            r.grainStrength = GrainStrength.allCases.randomElement(using: &rng)!
-            r.grainSize = GrainSize.allCases.randomElement(using: &rng)!
+            let r = randomRecipe(&rng)
             XCTAssertEqual(Recipe.decoded(from: r.encoded), r, "case \(seed): \(r)")
+        }
+    }
+
+    // MARK: - RecipeBook
+
+    /// INV-BOOK-1: whatever the user did to the saved recipes (import, rename and delete LUTs,
+    /// change and select recipes, in any order), the book reads back with the same recipes, names,
+    /// order and selection.
+    func testAnyRecipeBookSurvivesSaving() {
+        var rng = SplitMix64(seed: 5)
+        let luts = ["Kodak", "FLog2_to_ETERNA", "夕方 の 色", #"quote " and \ slash"#]
+        for seed in 0..<cases {
+            var book = RecipeBook.initial(migrating: Bool.random(using: &rng) ? randomRecipe(&rng) : nil)
+            var steps: [String] = []
+            for _ in 0..<Int.random(in: 0...12, using: &rng) {
+                let lut = luts.randomElement(using: &rng)!
+                switch Int.random(in: 0..<5, using: &rng) {
+                case 0:
+                    book.addImportedLUT(named: lut, displayName: "\(lut) \(seed)")
+                    steps.append("add \(lut)")
+                case 1:
+                    book.renameImportedLUT(named: lut, from: "\(lut) \(seed)", to: "renamed \(lut)")
+                    steps.append("rename \(lut)")
+                case 2:
+                    book.removeImportedLUT(named: lut)
+                    steps.append("remove \(lut)")
+                case 3:
+                    book.updateSelected(randomRecipe(&rng))
+                    steps.append("update")
+                default:
+                    book.select(book.recipes.randomElement(using: &rng)!.id)
+                    steps.append("select")
+                }
+            }
+            let back = RecipeBook.decoded(from: book.encoded)
+            XCTAssertEqual(back, book, "case \(seed): \(steps)")
+            XCTAssertEqual(back.recipes.map(\.name), book.recipes.map(\.name), "case \(seed): \(steps)")
+            XCTAssertEqual(back.selected.id, book.selected.id, "case \(seed): \(steps)")
+        }
+    }
+
+    // MARK: - Grain
+
+    /// INV-GRAIN-1: the grain weight is never negative, never above its peak 4/(3√3) at L = 1/3,
+    /// and fades to 0 at black and white, so grain never shows in clipped shadows or highlights.
+    func testGrainWeightStaysBetweenZeroAndItsPeak() {
+        var rng = SplitMix64(seed: 6)
+        let peak = 4 / (3 * 3.0.squareRoot())
+        // Past 0 and 1 too: luma from a LUT can overshoot, and the weight must clamp it.
+        for l in [-1, 0, 1, 2] + (0..<cases).map({ _ in Double.random(in: -0.5...1.5, using: &rng) }) {
+            let w = Grain.weight(luminance: l)
+            XCTAssertGreaterThanOrEqual(w, 0, "L=\(l)")
+            XCTAssertLessThanOrEqual(w, peak + 1e-15, "L=\(l)")  // one ulp of the peak
+            if l <= 0 || l >= 1 { XCTAssertEqual(w, 0, "L=\(l)") }
         }
     }
 }
@@ -107,5 +168,14 @@ struct SplitMix64: RandomNumberGenerator {
         z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
         z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
         return z ^ (z >> 31)
+    }
+}
+
+extension SplitMix64 {
+    /// Three independent values in `range`: an RGB triple or a point in a LUT's cube.
+    mutating func triple(in range: ClosedRange<Double> = 0...1) -> SIMD3<Double> {
+        SIMD3(
+            Double.random(in: range, using: &self), Double.random(in: range, using: &self),
+            Double.random(in: range, using: &self))
     }
 }

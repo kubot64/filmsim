@@ -48,7 +48,7 @@ def test_rotation_keeps_hue_order_inside_the_window():
 
 
 def test_fitted_rotation_golden_points():
-    # Swift / Metal must reproduce these (BT.709 Y'CbCr, -7 deg, centre 140, width 80).
+    # Also in the Swift fixtures (filmsim/fixtures.py); BT.709 Y'CbCr, -7 deg, centre 140, width 80.
     from filmsim.hue import x_series_warm_hue
 
     cases = [

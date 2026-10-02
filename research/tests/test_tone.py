@@ -64,7 +64,7 @@ def test_shoulder_keeps_rgb_ratios():
 
 
 def test_shoulder_golden_points():
-    # Swift / Metal must reproduce these (knee 0.6, gamma 0.5, BT.709 luma).
+    # Also in the Swift fixtures (filmsim/fixtures.py); knee 0.6, gamma 0.5, BT.709 luma.
     for v, expected in [
         (0.7, 0.721353129146),
         (0.8, 0.8472135955),

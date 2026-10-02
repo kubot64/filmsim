@@ -8,6 +8,7 @@ public struct SavedRecipe: Codable, Equatable, Identifiable, Sendable {
     public var isHidden: Bool
     /// Set on the plain recipe made when a LUT is imported, to the LUT's name. It lets deleting and
     /// renaming the LUT act on that recipe only, not on another recipe switched to the same LUT.
+    /// Cleared once the recipe switches to another look or the LUT is deleted.
     public var createdForLUT: String?
 
     public init(id: UUID = UUID(), name: String, recipe: Recipe, isHidden: Bool = false, createdForLUT: String? = nil) {
@@ -73,10 +74,15 @@ public struct RecipeBook: Codable, Equatable, Sendable {
         selectedID = id
     }
 
-    /// Replaces the settings of the recipe in use, keeping its name.
+    /// Replaces the settings of the recipe in use, keeping its name. A recipe made for a LUT that
+    /// switches to another look stops being that LUT's recipe for good (#88), so the LUT gets a
+    /// plain recipe again at launch and renaming the LUT no longer renames this one.
     public mutating func updateSelected(_ recipe: Recipe) {
         guard let i = recipes.firstIndex(where: { $0.id == selected.id }) else { return }
         recipes[i].recipe = recipe
+        if let lut = recipes[i].createdForLUT, recipe.importedLUT != lut {
+            recipes[i].createdForLUT = nil
+        }
     }
 
     /// A plain recipe for an imported LUT, unless one was already made for it or already uses it.

@@ -149,6 +149,79 @@ final class RecipeBookTests: XCTestCase {
         XCTAssertEqual(book.recipes.last?.name, "コダック")
     }
 
+    /// A recipe made for a LUT and switched to a built-in look is no longer the LUT's recipe (#88):
+    /// the LUT gets a plain recipe again at launch.
+    func testALUTGetsARecipeAgainAtLaunchAfterItsRecipeSwitchedLook() {
+        var book = bookWithKodakRecipeSwitchedToBuiltIn()
+        XCTAssertNil(book.selected.createdForLUT)
+        book.addMissingImportedLUTs([("Kodak", "Kodak")])
+        assertOneRecipeUses("Kodak", in: book)
+
+        book.removeImportedLUT(named: "Kodak")
+        book.addImportedLUT(named: "Kodak", displayName: "Kodak")
+        assertOneRecipeUses("Kodak", in: book)
+    }
+
+    /// Same, when the LUT is deleted and imported again before the next launch (#88).
+    func testALUTGetsARecipeAgainWhenReimportedAfterItsRecipeSwitchedLook() {
+        var book = bookWithKodakRecipeSwitchedToBuiltIn()
+        book.removeImportedLUT(named: "Kodak")
+        book.addImportedLUT(named: "Kodak", displayName: "Kodak")
+        assertOneRecipeUses("Kodak", in: book)
+    }
+
+    /// Once switched away, the recipe is the user's even when switched back with no adjustments:
+    /// renaming the LUT does not rename it and deleting the LUT does not delete it.
+    func testARecipeSwitchedBackToItsLUTIsNoLongerTheLUTsRecipe() {
+        var book = bookWithKodakRecipeSwitchedToBuiltIn()
+        book.renameImportedLUT(named: "Kodak", from: "Kodak", to: "コダック")
+        XCTAssertEqual(book.selected.name, "Kodak")
+
+        var back = Recipe()
+        back.importedLUT = "Kodak"
+        book.updateSelected(back)
+        XCTAssertNil(book.selected.createdForLUT)
+        book.renameImportedLUT(named: "Kodak", from: "Kodak", to: "コダック")
+        XCTAssertEqual(book.selected.name, "Kodak")
+
+        let id = book.selected.id
+        book.removeImportedLUT(named: "Kodak")
+        XCTAssertTrue(book.recipes.contains { $0.id == id })
+    }
+
+    /// Adjusting the recipe made for a LUT, without changing the look, keeps it the LUT's recipe.
+    func testAdjustingALUTRecipeKeepsItTheLUTsRecipe() {
+        var book = RecipeBook.initial()
+        book.addImportedLUT(named: "Kodak", displayName: "Kodak")
+        book.select(book.recipes.last!.id)
+        var adjusted = book.selected.recipe
+        adjusted.highlight = 2
+        book.updateSelected(adjusted)
+        XCTAssertEqual(book.selected.createdForLUT, "Kodak")
+        assertOneRecipeUses("Kodak", in: book)
+        book.renameImportedLUT(named: "Kodak", from: "Kodak", to: "コダック")
+        XCTAssertEqual(book.selected.name, "コダック")
+    }
+
+    /// A book with the plain recipe made for the "Kodak" LUT selected and switched to Classic Chrome.
+    private func bookWithKodakRecipeSwitchedToBuiltIn() -> RecipeBook {
+        var book = RecipeBook.initial()
+        book.addImportedLUT(named: "Kodak", displayName: "Kodak")
+        book.select(book.recipes.last!.id)
+        var switched = book.selected.recipe
+        switched.importedLUT = nil
+        switched.filmSimulation = .classicChrome
+        book.updateSelected(switched)
+        return book
+    }
+
+    private func assertOneRecipeUses(
+        _ lut: String, in book: RecipeBook, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let count = book.recipes.filter { $0.recipe.importedLUT == lut }.count
+        XCTAssertEqual(count, 1, "recipes using \(lut)", file: file, line: line)
+    }
+
     /// Books saved before `createdForLUT` existed still decode.
     func testDecodesABookWithoutCreatedForLUT() {
         let id = UUID()

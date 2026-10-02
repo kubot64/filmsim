@@ -141,6 +141,53 @@ final class InvariantTests: XCTestCase {
         }
     }
 
+    /// INV-BOOK-2: whatever the user did to the saved recipes, after the next launch every imported
+    /// LUT has a recipe that uses it, so it can be chosen from the camera's strip (#88).
+    func testEveryImportedLUTHasARecipeAfterLaunch() {
+        var rng = SplitMix64(seed: 7)
+        let luts = ["Kodak", "Agfa", "夕方 の 色"]
+        for seed in 0..<cases {
+            var book = RecipeBook.initial()
+            var imported: [String] = []
+            var steps: [String] = []
+            for _ in 0..<Int.random(in: 0...12, using: &rng) {
+                let lut = luts.randomElement(using: &rng)!
+                switch Int.random(in: 0..<5, using: &rng) {
+                case 0:
+                    book.addImportedLUT(named: lut, displayName: lut)
+                    if !imported.contains(lut) { imported.append(lut) }
+                    steps.append("add \(lut)")
+                case 1:
+                    book.renameImportedLUT(named: lut, from: lut, to: "renamed \(lut)")
+                    steps.append("rename \(lut)")
+                case 2:
+                    book.removeImportedLUT(named: lut)
+                    imported.removeAll { $0 == lut }
+                    steps.append("remove \(lut)")
+                case 3:
+                    // Adjust, switch to a built-in look, or switch to a LUT (imported or not yet).
+                    var recipe = book.selected.recipe
+                    recipe.highlight = Double.random(in: -2...4, using: &rng)
+                    switch Int.random(in: 0..<3, using: &rng) {
+                    case 0: break
+                    case 1: recipe.importedLUT = nil
+                    default: recipe.importedLUT = lut
+                    }
+                    book.updateSelected(recipe)
+                    steps.append("update \(recipe.importedLUT ?? "built-in")")
+                default:
+                    book.select(book.recipes.randomElement(using: &rng)!.id)
+                    steps.append("select")
+                }
+            }
+            book.addMissingImportedLUTs(imported.map { (name: $0, displayName: $0) })
+            for lut in imported {
+                XCTAssertTrue(
+                    book.recipes.contains { $0.recipe.importedLUT == lut }, "case \(seed): \(lut) after \(steps)")
+            }
+        }
+    }
+
     // MARK: - Grain
 
     /// INV-GRAIN-1: the grain weight is never negative, never above its peak 4/(3√3) at L = 1/3,

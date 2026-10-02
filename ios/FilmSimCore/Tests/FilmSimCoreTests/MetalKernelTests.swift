@@ -3,13 +3,13 @@ import XCTest
 
 @testable import FilmSimCore
 
-/// Runs the app's Metal kernels (ios/FilmSim/Shaders/FilmSim.metal) on the GPU and compares
-/// them with the Python golden values, so the production render path is covered and not
-/// only the Swift CPU functions.
+/// Runs the app's Metal kernels (ios/FilmSim/Shaders/FilmSim.metal) on the GPU over the research
+/// pipeline's fixture inputs (TransformFixtures), so the production render path is held to the
+/// Python and not only the Swift CPU functions.
 ///
 /// The kernels live in the app target because Core Image kernels need `-fcikernel`, which
 /// SwiftPM cannot pass. The test compiles the .metal file for macOS with `xcrun metal` once
-/// per run. Float32 on the GPU, so tolerances are around 1e-6 rather than 1e-12.
+/// per run.
 final class MetalKernelTests: XCTestCase {
     private static var library: Data?
     private static var loadError: String?
@@ -82,156 +82,122 @@ final class MetalKernelTests: XCTestCase {
         image(values.map { SIMD3(repeating: Float($0)) })
     }
 
-    func testFLog2EncodeMatchesPython() throws {
-        // research: FLOG2.encode (filmsim/flog2.py).
-        let cases: [(Double, Double)] = [
-            (0.0, 0.092864000000), (0.0005, 0.097263730500), (0.000889, 0.100686685371),
-            (0.01, 0.158797483886), (0.18, 0.391007241891), (0.5, 0.495604115612),
-            (0.9, 0.557132363979), (1.0, 0.568219370444), (4.0, 0.714967701026), (16.0, 0.862408929224)
-        ]
-        let k = try kernel("flog2Encode")
-        let input = grey(cases.map(\.0))
-        let out = render(k.apply(extent: input.extent, arguments: [input])!)
-        for ((x, expected), got) in zip(cases, out) {
-            for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected, accuracy: 2e-6, "x = \(x)") }
-        }
-    }
+    // MARK: - Against the research pipeline (TransformFixtures)
 
-    func testToneCurveMatchesPython() throws {
-        // research/tests/test_tone.py test_golden_points.
-        let cases: [(x: Double, highlight: Double, shadow: Double, expected: Double)] = [
-            (0.75, 4, 0, 0.805528455647), (0.25, 0, 4, 0.189257114166), (0.75, -2, 0, 0.724982211387),
-            (0.25, 0, -2, 0.299342958294), (0.8, 2, 3, 0.828519484754)
-        ]
-        let k = try kernel("toneCurve")
-        for c in cases {
-            let input = grey([c.x])
-            let args: [Any] = [input, NSNumber(value: Float(c.highlight)), NSNumber(value: Float(c.shadow))]
-            let got = render(k.apply(extent: input.extent, arguments: args)!)[0]
-            for ch in 0..<3 { XCTAssertEqual(Double(got[ch]), c.expected, accuracy: 2e-6, "\(c)") }
-        }
-    }
+    /// Float32 on the GPU: inputs round to 24-bit mantissas and the kernels chain a few fast-math
+    /// ops (log2, pow, atan2, cos) on values up to 1, each a few ulps, so about 1e-6 per channel.
+    private let gpuAccuracy = 2e-6
 
-    func testToneCurveMatchesSwiftAcrossARamp() throws {
-        let k = try kernel("toneCurve")
-        let xs = stride(from: 0.0, through: 1.0, by: 1.0 / 64).map { $0 }
-        let input = grey(xs)
-        for (h, s) in [(4.0, 0.0), (0.0, 4.0), (-2.0, -2.0), (2.0, 3.0)] {
-            let args: [Any] = [input, NSNumber(value: Float(h)), NSNumber(value: Float(s))]
-            let out = render(k.apply(extent: input.extent, arguments: args)!)
-            for (x, got) in zip(xs, out) {
+    private func assertMatches(
+        _ got: [SIMD3<Float>], _ cases: [TransformFixtures.Case], _ expected: (TransformFixtures.Case) -> SIMD3<Double>,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertEqual(got.count, cases.count, file: file, line: line)
+        for (c, g) in zip(cases, got) {
+            let e = expected(c)
+            for ch in 0..<3 {
                 XCTAssertEqual(
-                    Double(got.x), ToneCurve.evaluate(x, highlight: h, shadow: s), accuracy: 2e-6,
-                    "x=\(x) h=\(h) s=\(s)")
+                    Double(g[ch]), e[ch], accuracy: gpuAccuracy, "channel \(ch) \(c)", file: file, line: line)
             }
         }
+    }
+
+    func testFLog2EncodeMatchesPython() throws {
+        let cases = TransformFixtures.cases("flog2_encode")
+        let k = try kernel("flog2Encode")
+        let input = grey(cases.map { $0.in[0] })
+        assertMatches(render(k.apply(extent: input.extent, arguments: [input])!), cases) { SIMD3(repeating: $0.out[0]) }
     }
 
     func testShoulderMatchesPython() throws {
-        // research/tests/test_tone.py test_shoulder_golden_points, plus the fixed points.
-        let cases: [(Double, Double)] = [
-            (0.0, 0.0), (0.45, 0.45), (0.6, 0.6), (0.7, 0.721353129146), (0.8, 0.8472135955),
-            (0.9, 0.94107653273), (0.95, 0.973618990031), (1.0, 1.0)
-        ]
+        let cases = TransformFixtures.cases("highlight_shoulder")
         let k = try kernel("xSeriesShoulder")
-        let input = grey(cases.map(\.0))
+        let input = image(cases.map { SIMD3<Float>($0.rgbIn) })
         let args: [Any] = [
             input,
             NSNumber(value: Float(HighlightShoulder.knee)),
             NSNumber(value: Float(HighlightShoulder.gamma))
         ]
-        let out = render(k.apply(extent: input.extent, arguments: args)!)
-        for ((x, expected), got) in zip(cases, out) {
-            for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected, accuracy: 2e-6, "x = \(x)") }
-        }
-    }
-
-    func testShoulderMatchesSwiftOnColours() throws {
-        let colours: [SIMD3<Double>] = [[0.9, 0.6, 0.5], [0.95, 0.9, 0.2], [0.3, 0.8, 1.0], [0.7, 0.7, 0.72]]
-        let k = try kernel("xSeriesShoulder")
-        let input = image(colours.map { SIMD3<Float>($0) })
-        let args: [Any] = [
-            input,
-            NSNumber(value: Float(HighlightShoulder.knee)),
-            NSNumber(value: Float(HighlightShoulder.gamma))
-        ]
-        let out = render(k.apply(extent: input.extent, arguments: args)!)
-        for (rgb, got) in zip(colours, out) {
-            let expected = HighlightShoulder.evaluate(rgb)
-            for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
-        }
+        assertMatches(render(k.apply(extent: input.extent, arguments: args)!), cases) { $0.rgbOut }
     }
 
     func testWarmHueMatchesPython() throws {
-        // research/tests/test_hue.py test_fitted_rotation_golden_points.
-        let cases: [(SIMD3<Double>, SIMD3<Double>)] = [
-            ([0.8, 0.2, 0.1], [0.8144788117, 0.1906360983, 0.1501228138]),
-            ([0.9, 0.55, 0.2], [0.9390028460, 0.5337492135, 0.2461296049]),
-            ([0.7, 0.7, 0.2], [0.7288390912, 0.6909850233, 0.2043811709]),
-            ([0.2, 0.4, 0.9], [0.2, 0.4, 0.9]),
-            ([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-        ]
+        let cases = TransformFixtures.cases("warm_hue")
         let k = try kernel("xSeriesWarmHue")
-        let input = image(cases.map { SIMD3<Float>($0.0) })
+        let input = image(cases.map { SIMD3<Float>($0.rgbIn) })
         let args: [Any] = [
             input,
             NSNumber(value: Float(WarmHue.degrees)),
             NSNumber(value: Float(WarmHue.center)),
             NSNumber(value: Float(WarmHue.width))
         ]
-        let out = render(k.apply(extent: input.extent, arguments: args)!)
-        for ((rgb, expected), got) in zip(cases, out) {
-            for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
-        }
+        assertMatches(render(k.apply(extent: input.extent, arguments: args)!), cases) { $0.rgbOut }
     }
 
-    func testWarmHueMatchesSwiftAroundTheHueCircle() throws {
-        // 72 hues at two chroma levels, so the window edges and the wrap-around are covered.
-        var colours: [SIMD3<Double>] = []
-        for i in 0..<72 {
-            let t = Double(i) * 5 * .pi / 180
-            for r in [0.1, 0.25] {
-                let cb = r * cos(t), cr = r * sin(t), y = 0.5
-                let red = y + 1.5748 * cr, blue = y + 1.8556 * cb
-                let green = (y - BT709.luma.x * red - BT709.luma.z * blue) / BT709.luma.y
-                colours.append(SIMD3(red, green, blue).clamped(lowerBound: .zero, upperBound: SIMD3(repeating: 1)))
+    /// The kernel takes one highlight / shadow per call, so the cases render in groups that share them.
+    func testToneCurveMatchesPython() throws {
+        let k = try kernel("toneCurve")
+        let groups = Dictionary(grouping: TransformFixtures.cases("tone_curve")) { $0.params ?? [] }
+        for cases in groups.values {
+            let tone = cases[0].tone
+            let input = grey(cases.map { $0.in[0] })
+            let args: [Any] = [input, NSNumber(value: Float(tone.highlight)), NSNumber(value: Float(tone.shadow))]
+            assertMatches(render(k.apply(extent: input.extent, arguments: args)!), cases) {
+                SIMD3(repeating: $0.out[0])
             }
         }
-        let k = try kernel("xSeriesWarmHue")
-        let input = image(colours.map { SIMD3<Float>($0) })
-        let args: [Any] = [
-            input,
-            NSNumber(value: Float(WarmHue.degrees)),
-            NSNumber(value: Float(WarmHue.center)),
-            NSNumber(value: Float(WarmHue.width))
-        ]
-        let out = render(k.apply(extent: input.extent, arguments: args)!)
-        for (rgb, got) in zip(colours, out) {
-            let expected = WarmHue.evaluate(rgb)
-            for c in 0..<3 { XCTAssertEqual(Double(got[c]), expected[c], accuracy: 2e-6, "\(rgb)") }
-        }
     }
 
-    func testGrainApplyUsesPythonWeightAndAmplitude() throws {
-        // research/filmsim/grain.py: out = c + noise * sqrt(L)(1-L)*2 * amp, L = BT.709 luma.
-        // A constant noise image isolates the weight.
+    /// out = c + noise * weight(L) * amp, L the BT.709 luma of c. Each case's pixel is a colour
+    /// whose luma is the fixture's L (grey plus a zero-luma tint), so the kernel's own luma is
+    /// checked too; a constant noise isolates weight × amplitude. Both signs, both amplitudes.
+    func testGrainApplyUsesPythonWeight() throws {
+        let cases = TransformFixtures.cases("grain_weight")
         let k = try kernel("grainApply")
-        let colours: [SIMD3<Double>] = [
-            [0, 0, 0], [0.25, 0.25, 0.25], [0.5, 0.5, 0.5], [0.8, 0.6, 0.4], [1, 1, 1]
-        ]
+        // Zero luma (kr(kg + kb) − kg·kr − kb·kr = 0) and every channel moved, so a kernel that
+        // read one channel instead of the luma would be off.
+        let (kr, kg, kb) = (BT709.luma.x, BT709.luma.y, BT709.luma.z)
+        let tint = SIMD3(kg + kb, -kr, -kr)
+        let colours = cases.map { c -> SIMD3<Double> in
+            let l = c.in[0]
+            return SIMD3(repeating: l) + tint * min((1 - l) / (kg + kb), l / kr)
+        }
         let input = image(colours.map { SIMD3<Float>($0) })
         for (noise, amp) in [(1.0, GrainStrength.strong.amplitude), (-0.7, GrainStrength.weak.amplitude)] {
-            let noiseImage = image(Array(repeating: SIMD3(Float(noise), 0, 0), count: colours.count))
+            let noiseImage = image(Array(repeating: SIMD3(Float(noise), 0, 0), count: cases.count))
             let args: [Any] = [input, noiseImage, NSNumber(value: Float(amp))]
             let out = render(k.apply(extent: input.extent, arguments: args)!)
-            for (rgb, got) in zip(colours, out) {
-                let l = (rgb * BT709.luma).sum()
-                let delta = noise * Grain.weight(luminance: l) * amp
-                for c in 0..<3 {
-                    let expected = min(max(rgb[c] + delta, 0), 1)
-                    XCTAssertEqual(Double(got[c]), expected, accuracy: 2e-6, "\(rgb) noise \(noise)")
+            for ((c, colour), got) in zip(zip(cases, colours), out) {
+                let expected = (colour + SIMD3(repeating: noise * c.out[0] * amp)).clamped(
+                    lowerBound: .zero, upperBound: SIMD3(repeating: 1))
+                for ch in 0..<3 {
+                    XCTAssertEqual(
+                        Double(got[ch]), expected[ch], accuracy: gpuAccuracy,
+                        "channel \(ch) rgb=\(colour) noise=\(noise) amp=\(amp) \(c)")
                 }
             }
+        }
+    }
+
+    // MARK: - Properties
+
+    /// INV-GRAIN-2: grain off leaves every pixel as it was, at any grain size and preview scale.
+    /// Renders an image per case, so fewer cases than the pure-maths property tests.
+    func testGrainOffChangesNothing() throws {
+        let k = try kernel("grainApply")
+        var rng = SplitMix64(seed: 41)
+        for seed in 0..<200 {
+            let pixels = (0..<Int.random(in: 1...64, using: &rng)).map { _ in
+                SIMD3<Float>(
+                    Float.random(in: 0...1, using: &rng), Float.random(in: 0...1, using: &rng),
+                    Float.random(in: 0...1, using: &rng))
+            }
+            let size = GrainSize.allCases.randomElement(using: &rng)!
+            let scale = Double.random(in: 0.1...1, using: &rng)
+            let input = image(pixels)
+            let out = Grain.apply(to: input, strength: .off, size: size, pixelScale: scale, kernel: k)
+            XCTAssertEqual(out.extent, input.extent, "case \(seed)")
+            XCTAssertEqual(render(out), pixels, "case \(seed) size=\(size) scale=\(scale)")
         }
     }
 }

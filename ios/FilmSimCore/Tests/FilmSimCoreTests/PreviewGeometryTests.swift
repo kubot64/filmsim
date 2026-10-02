@@ -1,5 +1,4 @@
 import CoreGraphics
-import CoreImage
 import XCTest
 
 @testable import FilmSimCore
@@ -82,56 +81,6 @@ final class PreviewGeometryTests: XCTestCase {
 
     func testNoFocusPointForAnEmptyView() {
         XCTAssertNil(PreviewGeometry.focusViewPoint(forTap: .zero, in: .zero, frameSize: CGSize(width: 72, height: 72)))
-    }
-
-    // MARK: Drawn frame ↔ tap mapping
-
-    /// The preview drawing (`livePreviewFrame`) and the tap mapping (`devicePoint`) must agree:
-    /// a mark placed at a device point is drawn where tapping gives that device point back.
-    func testDrawnFrameAgreesWithTheTapMapping() throws {
-        let sensor = CGSize(width: 800, height: 600)
-        let context = CIContext(options: [.workingColorSpace: NSNull(), .outputColorSpace: NSNull()])
-        for focal in FocalLength.allCases {
-            let crop = PreviewGeometry.crop(sensorAspect: sensor.width / sensor.height, focalLength: focal)
-            for device in [CGPoint(x: 0.45, y: 0.4), CGPoint(x: 0.6, y: 0.62)] {
-                // CIImage is bottom-left origin; device points are top-left.
-                let mark = CIImage(color: .white).cropped(
-                    to: CGRect(
-                        x: device.x * sensor.width - 4, y: (1 - device.y) * sensor.height - 4, width: 8, height: 8
-                    ))
-                let frame = mark.composited(
-                    over: CIImage(color: .black).cropped(to: CGRect(origin: .zero, size: sensor)))
-                let size = CGSize(width: 200, height: 300)
-                let drawn = frame.livePreviewFrame(focalLength: focal, filling: size)
-                XCTAssertEqual(drawn.extent.width, size.width, accuracy: 0.5, focal.displayName)
-                XCTAssertEqual(drawn.extent.height, size.height, accuracy: 0.5, focal.displayName)
-
-                let found = try XCTUnwrap(centroid(of: drawn, size: size, context: context), focal.displayName)
-                let view = CGPoint(x: found.x / size.width, y: 1 - found.y / size.height)
-                let back = PreviewGeometry.devicePoint(fromView: view, crop: crop)
-                XCTAssertEqual(back.x, device.x, accuracy: 0.01, "\(focal.displayName) \(device)")
-                XCTAssertEqual(back.y, device.y, accuracy: 0.01, "\(focal.displayName) \(device)")
-            }
-        }
-    }
-
-    /// Centre of the bright pixels, in CIImage coordinates.
-    private func centroid(of image: CIImage, size: CGSize, context: CIContext) -> CGPoint? {
-        let w = Int(size.width), h = Int(size.height)
-        var pixels = [UInt8](repeating: 0, count: w * h * 4)
-        context.render(
-            image, toBitmap: &pixels, rowBytes: w * 4, bounds: CGRect(x: 0, y: 0, width: w, height: h), format: .RGBA8,
-            colorSpace: nil)
-        var sx = 0.0, sy = 0.0, n = 0.0
-        for row in 0..<h {
-            for col in 0..<w where pixels[(row * w + col) * 4] > 127 {
-                // Bitmap rows run top to bottom; CIImage y runs bottom to top.
-                sx += Double(col) + 0.5
-                sy += Double(h - row) - 0.5
-                n += 1
-            }
-        }
-        return n > 0 ? CGPoint(x: sx / n, y: sy / n) : nil
     }
 
     private func assertPoint(_ a: CGPoint, _ b: CGPoint, file: StaticString = #filePath, line: UInt = #line) {

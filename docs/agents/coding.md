@@ -10,7 +10,8 @@
 - Swift の各ファイルの先頭コメントに、写し元の Python のモジュールか関数名を書く（例：`Same as x_series_shoulder in research/filmsim/tone.py`）
 - 定数は出典をコメントに書く。データシートの値はそのまま写し、丸めない
 - 焼いた LUT（`ios/FilmSim/LUTs/Portra400VC_65grid.cube`）は研究側のスクリプトで作って commit する。公式 LUT は `scripts/fetch_luts.sh` が取るので commit しない。手で編集しない。モデルを変えたら焼き直す（研究側のテストが古いことを検出する）
-- 両側の対応を保証するテストを置く。Python のテストが Swift の定数を固定し（`test_grain.py` の `matches_swift_constants` のように）、Swift のテストが Python のゴールデン値を固定する
+- 両側にある画素ごとの変換は、フィクスチャで一致を確かめる。`research/filmsim/fixtures.py` がシード固定の乱数の入力と Python の出力を `research/tests/fixtures/transforms.json` に書き、Swift の CPU 版のテスト（`TransformFixtureTests`）と Metal のテスト（`MetalKernelTests`）が全件を比べる。変換を変えたら `make fixtures` で作り直して commit する（古いままだと研究側のテストが落ちる）。Swift のテストに Python の値を手で写さない
+- フィクスチャに載らない定数（`unit_noise_gain` のように画素ごとの変換でないもの）は、Python のテストが Swift の定数を固定する（`test_grain.py` の `matches_swift_constants`）
 
 ## FilmSimCore とアプリの境界
 
@@ -21,8 +22,12 @@
 
 ## テスト
 
-- 変換の関数には、例の値だけでなく性質のテストを足す。往復（decode(encode(x)) == x）、単調性、継ぎ目の連続性、エネルギーの保存など。`InvariantTests.swift` が手本
-- 乱数を使うテストはシードを固定し、失敗メッセージに入力値を入れる（`"x=\(x)"`）。再現できない失敗を作らない
+- 変換の関数には、例の値だけでなく**性質のテスト**を足す。どの入力でも成り立つ規則（往復、単調性、恒等、継ぎ目の連続性、範囲に収まることなど）を、乱数の入力で確かめる。`InvariantTests.swift` が手本
+- 性質のテストには `INV-<モジュール>-<番号>`（例：`INV-FLOG2-1`）の ID を doc コメントに付け、issue や PR からはこの ID で指す。入力の範囲はアプリで選べる範囲にする
+- 性質のテストは、わざと壊した実装（定数を 1 つずらすなど）で落ちることを確かめてから残す
+- 性質が成り立たなかったら、振る舞いのバグとして別の issue にし、`XCTExpectFailure` に issue 番号を添えて残す。性質のテストを足す PR では直さない
+- 乱数を使うテストは `SplitMix64` でシードを固定し、失敗メッセージに入力値を入れる（`"x=\(x)"`）。再現できない失敗を作らない
+- 性質のテストは Swift 側に、依存を足さずに書く。Python と同じであることはフィクスチャで確かめる。研究側で新しい変換を作るときに必要になったら hypothesis を入れる
 - 許容誤差には根拠を書く。GPU の float32 なら 1e-6 前後、CPU の double なら 1e-8 以下、データシートの 10bit 値なら ±1 コード。緩めたときはなぜかをコメントに残す
 - 公式 LUT を要るテストは、LUT が無ければ skip にする（`scripts/fetch_luts.sh` が取れない環境でも他のテストは回す）
 - 画面の振る舞いはテストしない。代わりに `SPEC.md` を直す

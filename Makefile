@@ -1,6 +1,6 @@
 export DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
 
-.PHONY: test test-py test-swift lint lint-py lint-swift fmt xcode ci luts
+.PHONY: test test-py test-swift lint lint-py lint-swift fmt xcode ci luts fixtures
 
 test: test-py test-swift
 
@@ -28,6 +28,10 @@ xcode:
 
 luts:
 	bash scripts/fetch_luts.sh
+
+# Python outputs the Swift tests compare against (research/filmsim/fixtures.py).
+fixtures:
+	cd research && uv run python scripts/write_fixtures.py
 
 # Local full check. GitHub Actions runs the same steps as parallel jobs in
 # .github/workflows/ci.yml (python / swift-package / ios-app) so macOS runners

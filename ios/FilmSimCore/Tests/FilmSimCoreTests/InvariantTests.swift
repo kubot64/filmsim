@@ -188,6 +188,62 @@ final class InvariantTests: XCTestCase {
         }
     }
 
+    /// INV-BOOK-3: in a build that ships only some built-in looks (ADR 0010), whatever the user did
+    /// to the saved recipes, after the app keeps the book to those looks (at launch and after a LUT
+    /// is deleted) no recipe renders a missing look, some recipe is visible and selected, and the
+    /// adjustments of every recipe the user changed are kept.
+    func testNoRecipeRendersAMissingLook() {
+        var rng = SplitMix64(seed: 8)
+        let luts = ["Kodak", "FLog2_to_PROVIA"]
+        let builds: [[FilmSimulation]] = [[.portra400vc], [.classicChrome], [.portra400vc, .provia]]
+        for seed in 0..<cases {
+            let available = builds.randomElement(using: &rng)!
+            var book = RecipeBook.initial(migrating: Bool.random(using: &rng) ? randomRecipe(&rng) : nil)
+            var steps: [String] = ["available \(available)"]
+            for _ in 0..<Int.random(in: 0...12, using: &rng) {
+                let lut = luts.randomElement(using: &rng)!
+                switch Int.random(in: 0..<5, using: &rng) {
+                case 0:
+                    book.addImportedLUT(named: lut, displayName: lut)
+                    steps.append("add \(lut)")
+                case 1:
+                    book.removeImportedLUT(named: lut)
+                    book.keepToBuiltInLooks(available)
+                    steps.append("remove \(lut)")
+                case 2:
+                    book.updateSelected(randomRecipe(&rng))
+                    steps.append("update")
+                case 3:
+                    book.keepToBuiltInLooks(available)
+                    steps.append("launch")
+                default:
+                    book.select(book.recipes.randomElement(using: &rng)!.id)
+                    steps.append("select")
+                }
+            }
+            var adjustments: [UUID: Recipe] = [:]
+            for saved in book.recipes { adjustments[saved.id] = ignoringLook(saved.recipe) }
+            book.keepToBuiltInLooks(available)
+            for saved in book.recipes where saved.recipe.importedLUT == nil {
+                XCTAssertTrue(
+                    available.contains(saved.recipe.filmSimulation), "case \(seed): \(saved.name) after \(steps)")
+            }
+            for saved in book.recipes {
+                XCTAssertEqual(
+                    ignoringLook(saved.recipe), adjustments[saved.id], "case \(seed): \(saved.name) after \(steps)")
+            }
+            XCTAssertTrue(book.recipes.contains { $0.id == book.selectedID }, "case \(seed): \(steps)")
+            XCTAssertFalse(book.visible.isEmpty, "case \(seed): \(steps)")
+        }
+    }
+
+    /// The recipe with its built-in look blanked out, to compare everything else.
+    private func ignoringLook(_ recipe: Recipe) -> Recipe {
+        var r = recipe
+        r.filmSimulation = .provia
+        return r
+    }
+
     // MARK: - Grain
 
     /// INV-GRAIN-1: the grain weight is never negative, never above its peak 4/(3√3) at L = 1/3,

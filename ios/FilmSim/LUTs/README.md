@@ -7,3 +7,4 @@
 
 ファイル名は `FilmSimCore/Recipe.swift` の `lutFileName` と一致させること。
 公式の .cube は git 管理外。XcodeGen がこのフォルダをアプリのリソースとして取り込む。
+App Store に出す Release 構成では公式の .cube を外す（`docs/adr/0010-no-fujifilm-luts-in-app-store-build.md`）。

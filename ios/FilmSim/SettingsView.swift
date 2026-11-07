@@ -142,7 +142,7 @@ struct SettingsView: View {
             Text("LUT の読み込み")
         } footer: {
             Text(
-                "3D LUT（.cube）を読み込み、フィルムシミュレーションの一覧に足す。F-Log2 用と S-Log3（S-Gamut3.Cine / S-Gamut3）用に対応し、何用かはファイル名と中身の書き込みから判定する。判定できないものや未対応のものは読み込まない。富士フイルムの公式 F-Log2 用 LUT はそのまま使える。"
+                "3D LUT（.cube）を読み込み、ルックの一覧に足す。F-Log2 用と S-Log3（S-Gamut3.Cine / S-Gamut3）用に対応し、何用かはファイル名と中身の書き込みから判定する。判定できないものや未対応のものは読み込まない。富士フイルムの公式 F-Log2 用 LUT はそのまま使える。"
             )
         }
         .fileImporter(

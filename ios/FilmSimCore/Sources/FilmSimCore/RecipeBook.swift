@@ -28,15 +28,15 @@ public struct RecipeBook: Codable, Equatable, Sendable {
     public private(set) var recipes: [SavedRecipe]
     public private(set) var selectedID: UUID
 
-    /// One plain recipe per built-in film simulation, named like it. `migrating` is the recipe the
-    /// app used before recipes were saved (`Recipe.storageKey`): it is selected, either as the
-    /// matching plain recipe or, when it has adjustments or an imported LUT, as a recipe of its own.
-    public static func initial(migrating last: Recipe? = nil) -> RecipeBook {
-        let recipes = FilmSimulation.allCases.map { sim in
-            var recipe = Recipe()
-            recipe.filmSimulation = sim
-            return SavedRecipe(name: sim.displayName, recipe: recipe)
-        }
+    /// One plain recipe per built-in film simulation in `available` (the ones this build ships a
+    /// LUT for), named like it. `migrating` is the recipe the app used before recipes were saved
+    /// (`Recipe.storageKey`): it is selected, either as the matching plain recipe or, when it has
+    /// adjustments or an imported LUT, as a recipe of its own.
+    public static func initial(
+        available: [FilmSimulation] = FilmSimulation.allCases, migrating last: Recipe? = nil
+    ) -> RecipeBook {
+        let looks = available.isEmpty ? FilmSimulation.allCases : available
+        let recipes = looks.map { SavedRecipe(name: $0.displayName, recipe: Self.plain($0)) }
         var book = RecipeBook(recipes: recipes, selectedID: recipes[0].id)
         guard let last else { return book }
         if let plain = recipes.first(where: { $0.recipe == last }) {
@@ -123,6 +123,39 @@ public struct RecipeBook: Codable, Equatable, Sendable {
         if !recipes.contains(where: { $0.id == selectedID }) {
             selectedID = (visible.first ?? recipes[0]).id
         }
+    }
+
+    /// Keeps every recipe on a built-in look this build ships (`available`, preferred first). The
+    /// App Store build has no Fujifilm LUTs (ADR 0010): the untouched plain recipe of a missing
+    /// look goes, and any other recipe that renders a missing look moves to the first available
+    /// one, keeping its adjustments. A recipe on an imported LUT is left alone; it is checked again
+    /// once the LUT is deleted. Does nothing when every look, or none, is available. Run at launch
+    /// and after a LUT is deleted.
+    public mutating func keepToBuiltInLooks(_ available: [FilmSimulation]) {
+        guard let fallback = available.first else { return }
+        let missing = Set(FilmSimulation.allCases).subtracting(available)
+        guard !missing.isEmpty else { return }
+        recipes.removeAll { saved in
+            let sim = saved.recipe.filmSimulation
+            return missing.contains(sim) && saved.createdForLUT == nil && saved.name == sim.displayName
+                && saved.recipe == Self.plain(sim)
+        }
+        for i in recipes.indices {
+            guard recipes[i].recipe.importedLUT == nil, missing.contains(recipes[i].recipe.filmSimulation) else {
+                continue
+            }
+            recipes[i].recipe.filmSimulation = fallback
+        }
+        if recipes.isEmpty { self = .initial(available: available) }
+        if !recipes.contains(where: { $0.id == selectedID }) {
+            selectedID = (visible.first ?? recipes[0]).id
+        }
+    }
+
+    private static func plain(_ simulation: FilmSimulation) -> Recipe {
+        var recipe = Recipe()
+        recipe.filmSimulation = simulation
+        return recipe
     }
 
     private static func plain(_ lutName: String) -> Recipe {

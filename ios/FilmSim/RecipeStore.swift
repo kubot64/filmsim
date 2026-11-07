@@ -19,6 +19,7 @@ final class RecipeStore: ObservableObject {
         var book = RecipeBook.decoded(from: defaults.data(forKey: RecipeBook.storageKey) ?? Data(), migrating: last)
         let library = LUTLibrary.shared
         book.addMissingImportedLUTs(library.names.map { ($0, library.displayName(for: $0)) })
+        book.keepToBuiltInLooks(BundledLooks.available)
         self.book = book
         defaults.set(book.encoded, forKey: RecipeBook.storageKey)
     }
@@ -44,7 +45,10 @@ final class RecipeStore: ObservableObject {
     }
 
     func lutDeleted(named name: String) {
+        var book = book
         book.removeImportedLUT(named: name)
+        book.keepToBuiltInLooks(BundledLooks.available)
+        self.book = book
     }
 }
 

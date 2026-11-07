@@ -1,7 +1,8 @@
 import FilmSimCore
 import SwiftUI
 
-/// Built-in looks first, then the imported LUTs. The develop screen uses it to change the selected recipe's look.
+/// Built-in looks this build ships (`BundledLooks`) first, then the imported LUTs. The develop screen
+/// uses it to change the selected recipe's look.
 /// Shows the look that will actually render (`effectiveLook`), so a deleted import reads as the
 /// built-in simulation it falls back to.
 struct LookPicker: View {
@@ -18,7 +19,7 @@ struct LookPicker: View {
 
     var body: some View {
         Picker(title, selection: selection) {
-            ForEach(FilmSimulation.allCases, id: \.self) { sim in
+            ForEach(BundledLooks.available, id: \.self) { sim in
                 Text(sim.displayName).tag(Look.builtIn(sim))
             }
 

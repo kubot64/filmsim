@@ -38,6 +38,20 @@ targets:
           }"
           # Rewrite only on change so an unchanged commit does not recompile the file.
           if [ "$(cat "$out" 2>/dev/null)" != "$content" ]; then printf '%s\n' "$content" > "$out"; fi
+    postBuildScripts:
+      # Fujifilm's LUTs may not be redistributed, so the Release build (the one archived for the
+      # App Store) must not carry them (ADR 0010). EXCLUDED_SOURCE_FILE_NAMES below leaves them
+      # out; this fails the build if one still got in.
+      - name: No Fujifilm LUTs in Release
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "$CONFIGURATION" = "Release" ]; then
+            found=$(find "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH" -maxdepth 1 -iname 'FLog2_to_*.cube')
+            if [ -n "$found" ]; then
+              echo "error: Fujifilm LUTs must not be in a Release build: $found"
+              exit 1
+            fi
+          fi
     dependencies:
       - package: FilmSimCore
     settings:
@@ -45,6 +59,13 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         # Name under the home-screen icon. The target, module and repo stay FilmSim / filmsim.
         INFOPLIST_KEY_CFBundleDisplayName: Irocam
+        # The App Store version. Raise CURRENT_PROJECT_VERSION for every upload, and
+        # MARKETING_VERSION for every release (README "App Store に出す").
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography
+        # No encryption beyond what iOS itself provides, so no export compliance documents.
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: "NO"
         INFOPLIST_KEY_NSCameraUsageDescription: "RAW 撮影のためにカメラを使います"
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "現像した写真と DNG を保存します"
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "このアプリで撮った写真を表示し、DNG を選んで現像し直します"
@@ -58,3 +79,7 @@ targets:
         # Core Image kernels written in Metal need these two flags.
         MTL_COMPILER_FLAGS: "-fcikernel"
         MTLLINKER_FLAGS: "-fcikernel"
+      configs:
+        Release:
+          # See "No Fujifilm LUTs in Release" above.
+          EXCLUDED_SOURCE_FILE_NAMES: "FLog2_to_*.cube"

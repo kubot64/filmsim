@@ -63,5 +63,27 @@ jobs:
             build | xcbeautify --renderer github-actions
       - name: Check LUTs are bundled
         run: |
-          app=$(find ~/Library/Developer/Xcode/DerivedData -type d -name 'FilmSim.app' -path '*iphonesimulator*' | head -n1)
+          app=$(find ~/Library/Developer/Xcode/DerivedData -type d -name 'FilmSim.app' -path '*Debug-iphonesimulator*' | head -n1)
           test -n "$app" && ls "$app"/*.cube
+      # The configuration archived for the App Store. Its build fails if a Fujifilm LUT got in (ADR 0010).
+      - name: Build (simulator, unsigned, Release)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project FilmSim.xcodeproj \
+            -scheme FilmSim \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify --renderer github-actions
+      - name: Check the Release build has only its own LUTs
+        run: |
+          app=$(find ~/Library/Developer/Xcode/DerivedData -type d -name 'FilmSim.app' -path '*Release-iphonesimulator*' | head -n1)
+          test -n "$app"
+          test -f "$app/Portra400VC_65grid.cube"
+          test -f "$app/PrivacyInfo.xcprivacy"
+          if ls "$app" | grep -i '^FLog2_to_'; then
+            echo "::error::Fujifilm LUTs are in the Release build (ADR 0010)"
+            exit 1
+          fi

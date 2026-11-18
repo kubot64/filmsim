@@ -1,6 +1,6 @@
 export DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
 
-.PHONY: test test-py test-swift lint lint-py lint-swift fmt xcode ci luts fixtures
+.PHONY: test test-py test-swift lint lint-py lint-swift fmt xcode ci luts fixtures archive
 
 test: test-py test-swift
 
@@ -41,3 +41,10 @@ ci: luts
 	swift format lint --strict --recursive --parallel ios
 	cd ios/FilmSimCore && swift test
 	cd ios && xcodegen generate && xcodebuild -project FilmSim.xcodeproj -scheme FilmSim -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build -quiet
+	cd ios && xcodebuild -project FilmSim.xcodeproj -scheme FilmSim -destination 'generic/platform=iOS Simulator' -configuration Release CODE_SIGNING_ALLOWED=NO build -quiet
+
+# The App Store build (README "App Store に出す"). TEAM is the Apple Developer Team ID.
+# Release leaves out Fujifilm's LUTs (ADR 0010). Upload the archive from Xcode's Organizer.
+archive:
+	test -n "$(TEAM)" || { echo "usage: make archive TEAM=<Team ID>"; exit 1; }
+	cd ios && xcodegen generate && xcodebuild -project FilmSim.xcodeproj -scheme FilmSim -destination 'generic/platform=iOS' -configuration Release -archivePath build/Irocam.xcarchive -allowProvisioningUpdates DEVELOPMENT_TEAM=$(TEAM) archive

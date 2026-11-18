@@ -16,6 +16,7 @@ ios/FilmSim.xcodeproj/
 ios/**/xcuserdata/
 ios/**/.build/
 ios/**/DerivedData/
+ios/build/
 *.xcuserstate
 
 # macOS

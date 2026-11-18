@@ -124,7 +124,7 @@ final class InvariantTests: XCTestCase {
                     book.renameImportedLUT(named: lut, from: "\(lut) \(seed)", to: "renamed \(lut)")
                     steps.append("rename \(lut)")
                 case 2:
-                    book.removeImportedLUT(named: lut)
+                    book.removeImportedLUT(named: lut, available: FilmSimulation.allCases)
                     steps.append("remove \(lut)")
                 case 3:
                     book.updateSelected(randomRecipe(&rng))
@@ -161,7 +161,7 @@ final class InvariantTests: XCTestCase {
                     book.renameImportedLUT(named: lut, from: lut, to: "renamed \(lut)")
                     steps.append("rename \(lut)")
                 case 2:
-                    book.removeImportedLUT(named: lut)
+                    book.removeImportedLUT(named: lut, available: FilmSimulation.allCases)
                     imported.removeAll { $0 == lut }
                     steps.append("remove \(lut)")
                 case 3:
@@ -186,6 +186,66 @@ final class InvariantTests: XCTestCase {
                     book.recipes.contains { $0.recipe.importedLUT == lut }, "case \(seed): \(lut) after \(steps)")
             }
         }
+    }
+
+    /// INV-BOOK-3: in either build (Debug ships every built-in look, the App Store build only Portra,
+    /// ADR 0010), whatever the user did to the saved recipes, after launch no recipe falls back to
+    /// a look the build doesn't ship, not even one on an imported LUT, some recipe is visible and
+    /// selected, and the adjustments of every recipe the user changed are kept.
+    func testNoRecipeRendersAMissingLook() {
+        var rng = SplitMix64(seed: 8)
+        let luts = ["Kodak", "FLog2_to_PROVIA"]
+        let builds: [[FilmSimulation]] = [FilmSimulation.allCases, [.portra400vc]]
+        for seed in 0..<cases {
+            let available = builds.randomElement(using: &rng)!
+            var book = RecipeBook.initial(migrating: Bool.random(using: &rng) ? randomRecipe(&rng) : nil)
+            var steps: [String] = ["available \(available)"]
+            for _ in 0..<Int.random(in: 0...12, using: &rng) {
+                let lut = luts.randomElement(using: &rng)!
+                switch Int.random(in: 0..<5, using: &rng) {
+                case 0:
+                    book.addImportedLUT(named: lut, displayName: lut)
+                    steps.append("add \(lut)")
+                case 1:
+                    book.removeImportedLUT(named: lut, available: available)
+                    steps.append("remove \(lut)")
+                case 2:
+                    book.updateSelected(randomRecipe(&rng))
+                    steps.append("update")
+                case 3:
+                    book.moveOffMissingLooks(available: available)
+                    steps.append("launch")
+                default:
+                    book.select(book.recipes.randomElement(using: &rng)!.id)
+                    steps.append("select")
+                }
+            }
+            var adjustments: [UUID: Recipe] = [:]
+            for saved in book.recipes { adjustments[saved.id] = ignoringLook(saved.recipe) }
+            let changed = book.recipes.filter { ignoringLook($0.recipe) != Recipe() }.map(\.id)
+            book.moveOffMissingLooks(available: available)
+            for id in changed {
+                XCTAssertTrue(
+                    book.recipes.contains { $0.id == id }, "case \(seed): a changed recipe went after \(steps)")
+            }
+            for saved in book.recipes {
+                XCTAssertTrue(
+                    available.contains(saved.recipe.filmSimulation), "case \(seed): \(saved.name) after \(steps)")
+            }
+            for saved in book.recipes {
+                XCTAssertEqual(
+                    ignoringLook(saved.recipe), adjustments[saved.id], "case \(seed): \(saved.name) after \(steps)")
+            }
+            XCTAssertTrue(book.recipes.contains { $0.id == book.selectedID }, "case \(seed): \(steps)")
+            XCTAssertFalse(book.visible.isEmpty, "case \(seed): \(steps)")
+        }
+    }
+
+    /// The recipe with its built-in look blanked out, to compare everything else.
+    private func ignoringLook(_ recipe: Recipe) -> Recipe {
+        var r = recipe
+        r.filmSimulation = .provia
+        return r
     }
 
     // MARK: - Grain

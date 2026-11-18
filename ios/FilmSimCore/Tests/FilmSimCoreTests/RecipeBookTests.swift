@@ -81,7 +81,7 @@ final class RecipeBookTests: XCTestCase {
         var book = RecipeBook.initial()
         book.addImportedLUT(named: "Kodak", displayName: "コダック")
         book.select(book.recipes.last!.id)
-        book.removeImportedLUT(named: "Kodak")
+        book.removeImportedLUT(named: "Kodak", available: FilmSimulation.allCases)
         XCTAssertFalse(book.recipes.contains { $0.recipe.importedLUT == "Kodak" })
         XCTAssertEqual(book.selected.id, book.recipes[0].id)
     }
@@ -95,7 +95,7 @@ final class RecipeBookTests: XCTestCase {
         var adjusted = book.selected.recipe
         adjusted.grainStrength = .strong
         book.updateSelected(adjusted)
-        book.removeImportedLUT(named: "Kodak")
+        book.removeImportedLUT(named: "Kodak", available: FilmSimulation.allCases)
         XCTAssertEqual(book.selected.name, "コダック")
         XCTAssertEqual(book.selected.recipe.grainStrength, .strong)
         XCTAssertNil(book.selected.recipe.importedLUT)
@@ -112,7 +112,7 @@ final class RecipeBookTests: XCTestCase {
         switched.importedLUT = "Kodak"
         book.updateSelected(switched)
 
-        book.removeImportedLUT(named: "Kodak")
+        book.removeImportedLUT(named: "Kodak", available: FilmSimulation.allCases)
         XCTAssertEqual(book.recipes.count, FilmSimulation.allCases.count)
         XCTAssertTrue(book.recipes.contains { $0.id == natural.id })
         XCTAssertEqual(book.selected.id, natural.id)
@@ -157,7 +157,7 @@ final class RecipeBookTests: XCTestCase {
         book.addMissingImportedLUTs([("Kodak", "Kodak")])
         assertOneRecipeUses("Kodak", in: book)
 
-        book.removeImportedLUT(named: "Kodak")
+        book.removeImportedLUT(named: "Kodak", available: FilmSimulation.allCases)
         book.addImportedLUT(named: "Kodak", displayName: "Kodak")
         assertOneRecipeUses("Kodak", in: book)
     }
@@ -165,7 +165,7 @@ final class RecipeBookTests: XCTestCase {
     /// Same, when the LUT is deleted and imported again before the next launch (#88).
     func testALUTGetsARecipeAgainWhenReimportedAfterItsRecipeSwitchedLook() {
         var book = bookWithKodakRecipeSwitchedToBuiltIn()
-        book.removeImportedLUT(named: "Kodak")
+        book.removeImportedLUT(named: "Kodak", available: FilmSimulation.allCases)
         book.addImportedLUT(named: "Kodak", displayName: "Kodak")
         assertOneRecipeUses("Kodak", in: book)
     }
@@ -185,7 +185,7 @@ final class RecipeBookTests: XCTestCase {
         XCTAssertEqual(book.selected.name, "Kodak")
 
         let id = book.selected.id
-        book.removeImportedLUT(named: "Kodak")
+        book.removeImportedLUT(named: "Kodak", available: FilmSimulation.allCases)
         XCTAssertTrue(book.recipes.contains { $0.id == id })
     }
 
@@ -220,6 +220,83 @@ final class RecipeBookTests: XCTestCase {
     ) {
         let count = book.recipes.filter { $0.recipe.importedLUT == lut }.count
         XCTAssertEqual(count, 1, "recipes using \(lut)", file: file, line: line)
+    }
+
+    // MARK: - A build without some built-in LUTs (ADR 0010)
+
+    func testInitialSeedsOnlyTheAvailableLooks() {
+        let book = RecipeBook.initial(available: [.portra400vc])
+        XCTAssertEqual(book.recipes.map(\.recipe.filmSimulation), [.portra400vc])
+        XCTAssertEqual(book.selected.id, book.recipes[0].id)
+    }
+
+    /// A fresh book loses the plain recipes of the missing looks and selects the remaining one.
+    func testMissingLooksLoseTheirPlainRecipes() {
+        var book = RecipeBook.initial()
+        book.moveOffMissingLooks(available: [.portra400vc])
+        XCTAssertEqual(book.recipes.map(\.name), [FilmSimulation.portra400vc.displayName])
+        XCTAssertEqual(book.selected.recipe.filmSimulation, .portra400vc)
+    }
+
+    /// A recipe the user adjusted on a missing look stays, with its adjustments, on the first available look.
+    func testAnAdjustedRecipeOnAMissingLookMovesToAnAvailableOne() {
+        var book = RecipeBook.initial()
+        book.select(book.recipes[1].id)
+        var adjusted = book.selected.recipe
+        adjusted.grainStrength = .strong
+        book.updateSelected(adjusted)
+        book.moveOffMissingLooks(available: [.portra400vc])
+        XCTAssertEqual(book.recipes.count, 2)
+        XCTAssertEqual(book.selected.name, FilmSimulation.classicChrome.displayName)
+        XCTAssertEqual(book.selected.recipe.filmSimulation, .portra400vc)
+        XCTAssertEqual(book.selected.recipe.grainStrength, .strong)
+    }
+
+    /// A recipe on an imported LUT keeps it, and the look it renders when the LUT can't be read is an
+    /// available one, so a lost LUT file never leaves it on a look the build doesn't ship.
+    func testALUTRecipeKeepsItsLUTAndFallsBackToAnAvailableLook() {
+        var book = RecipeBook.initial()
+        book.addImportedLUT(named: "Kodak", displayName: "Kodak")
+        book.moveOffMissingLooks(available: [.portra400vc])
+        let lutRecipe = book.recipes.first { $0.recipe.importedLUT == "Kodak" }
+        XCTAssertEqual(lutRecipe?.recipe.filmSimulation, .portra400vc)
+        XCTAssertEqual(lutRecipe?.createdForLUT, "Kodak")
+    }
+
+    /// The plain recipe made for a LUT is still recognised as untouched after its fallback look
+    /// moved, so deleting the LUT removes it.
+    func testDeletingALUTRemovesItsPlainRecipeAfterItsFallbackMoved() {
+        var book = RecipeBook.initial()
+        book.addImportedLUT(named: "Kodak", displayName: "Kodak")
+        book.moveOffMissingLooks(available: [.portra400vc])
+        book.removeImportedLUT(named: "Kodak", available: [.portra400vc])
+        XCTAssertEqual(book.recipes.map(\.name), [FilmSimulation.portra400vc.displayName])
+    }
+
+    /// A recipe on an imported LUT keeps it; once the LUT is deleted, it falls back to an available look.
+    func testALUTRecipeFallsBackToAnAvailableLookAfterTheLUTIsDeleted() {
+        var book = RecipeBook.initial()
+        book.moveOffMissingLooks(available: [.portra400vc])
+        book.addImportedLUT(named: "FLog2_to_PROVIA", displayName: "Provia")
+        book.select(book.recipes.last!.id)
+        var adjusted = book.selected.recipe
+        adjusted.shadow = 1
+        book.updateSelected(adjusted)
+        book.moveOffMissingLooks(available: [.portra400vc])
+        XCTAssertEqual(book.selected.recipe.importedLUT, "FLog2_to_PROVIA")
+
+        book.removeImportedLUT(named: "FLog2_to_PROVIA", available: [.portra400vc])
+        XCTAssertEqual(book.selected.recipe.filmSimulation, .portra400vc)
+        XCTAssertEqual(book.selected.recipe.shadow, 1)
+    }
+
+    func testEveryLookAvailableChangesNothing() {
+        var book = RecipeBook.initial()
+        let before = book
+        book.moveOffMissingLooks(available: FilmSimulation.allCases)
+        XCTAssertEqual(book, before)
+        book.moveOffMissingLooks(available: [])
+        XCTAssertEqual(book, before)
     }
 
     /// Books saved before `createdForLUT` existed still decode.

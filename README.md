@@ -38,9 +38,9 @@ GitHub Actions（`.github/workflows/ci.yml`）で push と PR ごとに 3 ジョ
 
 ## App Store に出す
 
-App Store に出すのは Release 構成のビルド。富士の公式 LUT は再配布できないので Release には入れず、組み込みのルックはアメリカだけになる（[ADR 0010](docs/adr/0010-no-fujifilm-luts-in-app-store-build.md)）。入っていればビルドが失敗する。
+App Store に出すのは Release 構成のビルドで、富士の公式 LUT は入らない（[ADR 0010](docs/adr/0010-no-fujifilm-luts-in-app-store-build.md)）。
 
-1. `ios/project.yml` の `CURRENT_PROJECT_VERSION` を上げる（アップロードごと）。出す版が変わるなら `MARKETING_VERSION` も上げる
+1. `ios/project.yml` の版の番号を上げる（どれをいつ上げるかは、そこのコメント）
 2. `make archive TEAM=<Team ID>` で `ios/build/Irocam.xcarchive` を作る（Team ID は Apple Developer の Membership にある 10 文字）
 3. Xcode の Window → Organizer で、そのアーカイブを「Distribute App」→「App Store Connect」でアップロードする
 
@@ -48,13 +48,13 @@ App Store Connect に最初に登録するときに決めること：
 
 | 項目 | 値 |
 |---|---|
-| Bundle ID | `com.morikubo.FilmSim`（`project.yml` の `bundleIdPrefix` とターゲット名から） |
+| Bundle ID | `com.morikubo.FilmSim` |
 | 名前 | Irocam |
 | カテゴリ | 写真/ビデオ |
 | プライバシーポリシーの URL | https://github.com/kubot64/filmsim/blob/main/docs/privacy.md |
 | サポートの URL | https://github.com/kubot64/filmsim/issues |
-| App のプライバシー | 「データを収集しない」（`ios/FilmSim/PrivacyInfo.xcprivacy` と同じ） |
-| 輸出コンプライアンス | 申告不要（`ITSAppUsesNonExemptEncryption` = NO を Info.plist に入れてある） |
+| App のプライバシー | 「データを収集しない」（アプリのプライバシーマニフェストと同じ） |
+| 輸出コンプライアンス | 申告不要（アプリの設定で申告済み） |
 | 対応端末 | iPhone のみ。Bayer RAW が撮れない端末ではシャッターを押せないので、説明文に書いておく |
 | スクリーンショット | 6.9 インチの iPhone の縦向き |
 

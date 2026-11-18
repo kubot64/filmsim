@@ -124,7 +124,7 @@ final class InvariantTests: XCTestCase {
                     book.renameImportedLUT(named: lut, from: "\(lut) \(seed)", to: "renamed \(lut)")
                     steps.append("rename \(lut)")
                 case 2:
-                    book.removeImportedLUT(named: lut)
+                    book.removeImportedLUT(named: lut, available: FilmSimulation.allCases)
                     steps.append("remove \(lut)")
                 case 3:
                     book.updateSelected(randomRecipe(&rng))
@@ -161,7 +161,7 @@ final class InvariantTests: XCTestCase {
                     book.renameImportedLUT(named: lut, from: lut, to: "renamed \(lut)")
                     steps.append("rename \(lut)")
                 case 2:
-                    book.removeImportedLUT(named: lut)
+                    book.removeImportedLUT(named: lut, available: FilmSimulation.allCases)
                     imported.removeAll { $0 == lut }
                     steps.append("remove \(lut)")
                 case 3:
@@ -188,14 +188,14 @@ final class InvariantTests: XCTestCase {
         }
     }
 
-    /// INV-BOOK-3: in a build that ships only some built-in looks (ADR 0010), whatever the user did
-    /// to the saved recipes, after the app keeps the book to those looks (at launch and after a LUT
-    /// is deleted) no recipe renders a missing look, some recipe is visible and selected, and the
-    /// adjustments of every recipe the user changed are kept.
+    /// INV-BOOK-3: in either build (Debug ships every built-in look, the App Store build only Portra,
+    /// ADR 0010), whatever the user did to the saved recipes, after launch no recipe falls back to
+    /// a look the build doesn't ship, not even one on an imported LUT, some recipe is visible and
+    /// selected, and the adjustments of every recipe the user changed are kept.
     func testNoRecipeRendersAMissingLook() {
         var rng = SplitMix64(seed: 8)
         let luts = ["Kodak", "FLog2_to_PROVIA"]
-        let builds: [[FilmSimulation]] = [[.portra400vc], [.classicChrome], [.portra400vc, .provia]]
+        let builds: [[FilmSimulation]] = [FilmSimulation.allCases, [.portra400vc]]
         for seed in 0..<cases {
             let available = builds.randomElement(using: &rng)!
             var book = RecipeBook.initial(migrating: Bool.random(using: &rng) ? randomRecipe(&rng) : nil)
@@ -207,14 +207,13 @@ final class InvariantTests: XCTestCase {
                     book.addImportedLUT(named: lut, displayName: lut)
                     steps.append("add \(lut)")
                 case 1:
-                    book.removeImportedLUT(named: lut)
-                    book.keepToBuiltInLooks(available)
+                    book.removeImportedLUT(named: lut, available: available)
                     steps.append("remove \(lut)")
                 case 2:
                     book.updateSelected(randomRecipe(&rng))
                     steps.append("update")
                 case 3:
-                    book.keepToBuiltInLooks(available)
+                    book.moveOffMissingLooks(available: available)
                     steps.append("launch")
                 default:
                     book.select(book.recipes.randomElement(using: &rng)!.id)
@@ -223,8 +222,13 @@ final class InvariantTests: XCTestCase {
             }
             var adjustments: [UUID: Recipe] = [:]
             for saved in book.recipes { adjustments[saved.id] = ignoringLook(saved.recipe) }
-            book.keepToBuiltInLooks(available)
-            for saved in book.recipes where saved.recipe.importedLUT == nil {
+            let changed = book.recipes.filter { ignoringLook($0.recipe) != Recipe() }.map(\.id)
+            book.moveOffMissingLooks(available: available)
+            for id in changed {
+                XCTAssertTrue(
+                    book.recipes.contains { $0.id == id }, "case \(seed): a changed recipe went after \(steps)")
+            }
+            for saved in book.recipes {
                 XCTAssertTrue(
                     available.contains(saved.recipe.filmSimulation), "case \(seed): \(saved.name) after \(steps)")
             }

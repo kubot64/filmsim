@@ -59,8 +59,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         # Name under the home-screen icon. The target, module and repo stay FilmSim / filmsim.
         INFOPLIST_KEY_CFBundleDisplayName: Irocam
-        # The App Store version. Raise CURRENT_PROJECT_VERSION for every upload, and
-        # MARKETING_VERSION for every release (README "App Store に出す").
+        # The App Store version (README "App Store に出す"). Raise CURRENT_PROJECT_VERSION for every
+        # upload, and MARKETING_VERSION whenever the version users see changes.
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography
